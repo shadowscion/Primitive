@@ -1,36 +1,112 @@
 AddCSLuaFile()
 DEFINE_BASECLASS("base_anim")
 
-ENT.PrintName = "gmod_primitive"
-ENT.Category = "gmod_primitive"
+ENT.PrintName = "prop_primitive"
 ENT.Author = "shadowscion"
 ENT.AdminOnly = false
-ENT.Spawnable = true
+ENT.Spawnable = false
 ENT.RenderGroup = RENDERGROUP_BOTH
 
-cleanup.Register("gmod_primitive")
+cleanup.Register("prop_primitive")
 
-local wireframe = Material("sprops/sprops_grid_12x12")
+local wireframe = Material("hunter/myplastic")
 
-function ENT:SpawnFunction(ply, tr, ClassName)
-	if not tr.Hit then
-		return
+local typevars = {}
+typevars.cube = { "dx", "dy", "dz" }
+typevars.wedge = { "dx", "dy", "dz" }
+typevars.wedge_corner = { "dx", "dy", "dz" }
+typevars.pyramid = { "dx", "dy", "dz" }
+typevars.cylinder = { "dx", "dy", "dz", "segments" }
+typevars.tube = { "dx", "dy", "dz", "segments", "thickness" }
+for k, v in pairs(typevars) do
+	local t = {}
+	for i, j in pairs(v) do
+		t["_primitive_" .. j] = j
+	end
+	typevars[k] = t
+end
+
+if SERVER then
+	local function spawn_setup(ply, args)
+		if not IsValid(ply) or not scripted_ents.GetStored("prop_primitive") then return end
+		if scripted_ents.GetMember("prop_primitive", "AdminOnly") and not ply:IsAdmin() then return end
+		if not gamemode.Call("PlayerSpawnProp", ply, "prop_primitive") then return end
+
+		local primitive_type = args[1]
+		if not primitive_type or not typevars[primitive_type] then return end
+
+		local vStart = ply:EyePos()
+		local vForward = ply:GetAimVector()
+
+		local tr = util.TraceLine({
+			start = vStart,
+			endpos = vStart + vForward*4096,
+			filter = ply,
+		})
+
+		if not tr.Hit then return end
+
+		local ent = ents.Create("prop_primitive")
+		ent:SetModel("models/hunter/blocks/cube025x025x025.mdl")
+		ent:Set_primitive_type(primitive_type)
+		ent:SetPos(tr.HitPos + tr.HitNormal*(ent:Get_primitive_dz()*0.5 + 6))
+		ent:Spawn()
+		ent:Activate()
+
+		if not IsValid(ent) then return end
+
+		gamemode.Call("PlayerSpawnedProp", ply, nil, ent)
+
+		undo.Create("Prop")
+			undo.SetPlayer(ply)
+			undo.AddEntity(ent)
+			undo.SetCustomUndoText(string.format("Undone primitive (%s)", primitive_type))
+		undo.Finish(string.format("primitive (%s)", primitive_type))
+
+		ply:AddCleanup("props", ent)
+		ent:SetVar("Player", ply)
 	end
 
-	local ent = ents.Create(ClassName)
-	ent:SetModel("models/hunter/blocks/cube025x025x025.mdl")
-	ent:SetPos(tr.HitPos + tr.HitNormal*ent:Get_primitive_dz())
-	ent:Spawn()
-	ent:Activate()
+	concommand.Add("primitive_spawn", function(ply, cmd, args)
+		spawn_setup(ply, args)
+	end)
 
-	return ent
+	duplicator.RegisterEntityClass("prop_primitive", function(ply, data)
+		if scripted_ents.GetMember("prop_primitive", "AdminOnly") and not ply:IsAdmin() then
+		 return false
+		end
+		if not gamemode.Call("PlayerSpawnProp", ply, "prop_primitive") then
+			return false
+		end
+
+		local ent = ents.Create("prop_primitive")
+		if not IsValid(ent) then
+			return false
+		end
+
+		ent:SetModel("models/hunter/blocks/cube025x025x025.mdl")
+		ent:Spawn()
+		ent:Activate()
+
+		if data then
+			duplicator.DoGeneric(ent, data)
+		end
+
+		gamemode.Call("PlayerSpawnedProp", ply, nil, ent)
+
+		ply:AddCleanup("props", ent)
+		ent:SetVar("Player", ply)
+
+		return ent
+	end, "Data")
+
 end
 
 function ENT:SetupDataTables()
 	local cat = "Config"
 	self:NetworkVar("String", 0, "_primitive_type", {KeyName="_primitive_type",Edit={order=100,category=cat,title="Type",type="Combo",colorOverride=true,text="cube",
 		values={cube="cube",cylinder="cylinder",tube="tube",wedge="wedge",wedge_corner="wedge_corner",pyramid="pyramid"}}})
-	self:NetworkVar("Bool", 0, "_primitive_dbg", {KeyName="_primitive_dbg",Edit={order=101,category=cat,title="Debug",type="Boolean"}})
+	self:NetworkVar("Bool", 0, "_primitive_dbg", {KeyName="_primitive_dbg",Edit={order=101,category=cat,title="Debug",type="Boolean",colorOverride=true}})
 
 	local cat = "Dimensions"
 	self:NetworkVar("Float", 0, "_primitive_dx", {KeyName="_primitive_dx",Edit={order=200,category=cat,title="Length X",type="Float",min=0.5,max=512}})
@@ -59,6 +135,10 @@ function ENT:SetupDataTables()
 	end
 
 	self.queue_rebuild = CurTime()
+end
+
+function ENT:Get_primitive_typevars()
+	return typevars[self:Get_primitive_type()]
 end
 
 function ENT:_primitive_trigger_update(name, old, new)
@@ -142,27 +222,10 @@ function ENT:Think()
 			local primitive_type = self:Get_primitive_type()
 			local editor = self:GetEditingData()
 
-			if primitive_type == "cube" then
-				editor._primitive_dx.enabled = true
-				editor._primitive_dy.enabled = true
-				editor._primitive_dz.enabled = true
-				editor._primitive_thickness.enabled = false
-				editor._primitive_segments.enabled = false
-
-			elseif primitive_type == "cylinder" then
-				editor._primitive_dx.enabled = true
-				editor._primitive_dy.enabled = true
-				editor._primitive_dz.enabled = true
-				editor._primitive_thickness.enabled = false
-				editor._primitive_segments.enabled = true
-
-			elseif primitive_type == "tube" then
-				editor._primitive_dx.enabled = true
-				editor._primitive_dy.enabled = true
-				editor._primitive_dz.enabled = true
-				editor._primitive_thickness.enabled = true
-				editor._primitive_segments.enabled = true
-
+			for k, v in pairs(editor) do
+				if not v.colorOverride then
+					v.enabled = typevars[primitive_type][k] and true or false
+				end
 			end
 
 			if vmesh and #vmesh >= 3 then

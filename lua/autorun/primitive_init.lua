@@ -1,7 +1,7 @@
 AddCSLuaFile()
 
 if not PRIMITIVE then
-	PRIMITIVE = {}
+	PRIMITIVE = { Builders = {} }
 end
 
 local math = math
@@ -17,7 +17,7 @@ properties.Add("primitive_edit", {
 		if not IsValid(ent) then
 			return false
 		end
-		if ent:GetClass() ~= "gmod_primitive" then
+		if ent:GetClass() ~= "prop_primitive" then
 			return false
 		end
 		if not gamemode.Call("CanProperty", ply, "primitive_edit", ent) then
@@ -43,7 +43,21 @@ properties.Add("primitive_edit", {
 	end
 })
 
-local function triangulate(vertices, indices, uv)
+hook.Add("PopulateContent", "primitive_spawnlist", function(pnlContent, tree, browse)
+	local pnode = tree:AddNode("Primitive", "icon16/shape_square.png")
+	pnode:SetExpanded(true)
+
+	for k, v in SortedPairs(PRIMITIVE.Builders) do
+		local tnode = pnode:AddNode(k, "icon16/bullet_blue.png")
+		tnode.DoClick = function(self)
+			tree:SetSelectedItem(nil)
+			RunConsoleCommand("primitive_spawn", k)
+			surface.PlaySound("ui/buttonclickrelease.wav" )
+		end
+	end
+end)
+
+function PRIMITIVE.triangulate(vertices, indices, uv)
 	uv = 2 / 48 --math.max(1, math.floor(math.abs(uv or 48)))
 	local tris = {}
 	for k, face in ipairs(indices) do
@@ -98,23 +112,7 @@ local function triangulate(vertices, indices, uv)
 	return tris
 end
 
--- local mins = Vector(math.huge, math.huge, math.huge)
--- local maxs = Vector(-math.huge, -math.huge, -math.huge)
-
--- for i = 1, #vertices do
--- 	local x = vertices[i].x
--- 	local y = vertices[i].y
--- 	local z = vertices[i].z
-
--- 	if x < mins.x then mins.x = x end
--- 	if y < mins.y then mins.y = y end
--- 	if z < mins.z then mins.z = z end
--- 	if x > maxs.x then maxs.x = x end
--- 	if y > maxs.y then maxs.y = y end
--- 	if z > maxs.z then maxs.z = z end
--- end
-
-local builders = {}
+local builders = PRIMITIVE.Builders
 
 /*
 builders.spike = function(vars)
@@ -168,7 +166,7 @@ builders.wedge_corner = function(vars)
 			 {1,2,3},
 		}
 
-		return { vertices }, triangulate(vertices, indices), vertices
+		return { vertices }, PRIMITIVE.triangulate(vertices, indices), vertices
 	end
 end
 
@@ -197,7 +195,7 @@ builders.wedge = function(vars)
 			{3,4,2,1},
 		}
 
-		return { vertices }, triangulate(vertices, indices), vertices
+		return { vertices }, PRIMITIVE.triangulate(vertices, indices), vertices
 	end
 end
 
@@ -225,7 +223,7 @@ builders.pyramid = function(vars)
 			{3,4,2,1},
 		}
 
-		return { vertices }, triangulate(vertices, indices), vertices
+		return { vertices }, PRIMITIVE.triangulate(vertices, indices), vertices
 	end
 end
 
@@ -257,7 +255,7 @@ builders.cube = function(vars)
 			{5,6,2,1},
 		}
 
-		return { vertices }, triangulate(vertices, indices), vertices
+		return { vertices }, PRIMITIVE.triangulate(vertices, indices), vertices
 	end
 end
 
@@ -310,7 +308,7 @@ builders.tube = function(vars)
 			table.insert(indices, {1, 3, 4, 2})
 		end
 
-		return pmesh, triangulate(vertices, indices), vertices
+		return pmesh, PRIMITIVE.triangulate(vertices, indices), vertices
 	end
 end
 
@@ -357,7 +355,7 @@ builders.cylinder = function(vars)
 			table.insert(indices, {1, 3, 4, 2})
 		end
 
-		return pmesh, triangulate(vertices, indices), vertices
+		return pmesh, PRIMITIVE.triangulate(vertices, indices), vertices
 	end
 end
 
