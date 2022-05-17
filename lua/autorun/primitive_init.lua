@@ -260,8 +260,8 @@ builders.cube = function(vars)
 end
 
 builders.tube = function(vars)
-	local maxSegments = 32
-	local numSegments = math.Clamp(math.abs(math.floor(vars._primitive_segments or maxSegments)), 1, maxSegments)
+	local maxsegments = math.Clamp(math.abs(math.floor(vars._primitive_maxsegments or 32)), 3, 32)
+	local numsegments = math.Clamp(math.abs(math.floor(vars._primitive_numsegments or maxsegments)), 1, maxsegments)
 
 	local dx1 = math.Clamp(math.abs(vars._primitive_dx or 1), 1, 512)*0.5
 	local dx2 = math.Clamp(dx1 - math.abs(vars._primitive_thickness or 1), 0, dx1)
@@ -270,17 +270,17 @@ builders.tube = function(vars)
 	local dz = math.Clamp(math.abs(vars._primitive_dz or 1), 1, 512)*0.5
 
 	local vertices = {}
-	for i = 0, numSegments do
-		local a = math.rad((i / maxSegments) * -360)
-		table.insert(vertices, Vector(math.sin(a)*dx1, math.cos(a)*dy1, dz))
-		table.insert(vertices, Vector(math.sin(a)*dx1, math.cos(a)*dy1, -dz))
-		table.insert(vertices, Vector(math.sin(a)*dx2, math.cos(a)*dy2, dz))
-		table.insert(vertices, Vector(math.sin(a)*dx2, math.cos(a)*dy2, -dz))
+	for i = 0, numsegments do
+		local a = math.rad((i / maxsegments) * -360)
+		vertices[#vertices + 1] = Vector(math.sin(a)*dx1, math.cos(a)*dy1, dz)
+		vertices[#vertices + 1] = Vector(math.sin(a)*dx1, math.cos(a)*dy1, -dz)
+		vertices[#vertices + 1] = Vector(math.sin(a)*dx2, math.cos(a)*dy2, dz)
+		vertices[#vertices + 1] = Vector(math.sin(a)*dx2, math.cos(a)*dy2, -dz)
 	end
 
 	local pmesh = {}
 	for i = 1, #vertices - 4, 4 do
-		table.insert(pmesh, {
+		pmesh[#pmesh + 1] = {
 			vertices[i + 0],
 			vertices[i + 1],
 			vertices[i + 2],
@@ -289,7 +289,7 @@ builders.tube = function(vars)
 			vertices[i + 5],
 			vertices[i + 6],
 			vertices[i + 7],
-		})
+		}
 	end
 
 	if SERVER then
@@ -297,15 +297,16 @@ builders.tube = function(vars)
 	else
 		local indices = {}
 		for i = 1, #vertices - 4, 4 do
-			table.insert(indices, {i + 0, i + 4, i + 6, i + 2})
-			table.insert(indices, {i + 4, i + 0, i + 1, i + 5})
-			table.insert(indices, {i + 2, i + 6, i + 7, i + 3})
-			table.insert(indices, {i + 5, i + 1, i + 3, i + 7})
+			indices[#indices + 1] = {i + 0, i + 4, i + 6, i + 2}
+			indices[#indices + 1] = {i + 4, i + 0, i + 1, i + 5}
+			indices[#indices + 1] = {i + 2, i + 6, i + 7, i + 3}
+			indices[#indices + 1] = {i + 5, i + 1, i + 3, i + 7}
 		end
-		if numSegments ~= maxSegments then
-			local i = numSegments*4 + 1
-			table.insert(indices, {i + 2, i + 0, i + 1, i + 3})
-			table.insert(indices, {1, 3, 4, 2})
+
+		if numsegments ~= maxsegments then
+			local i = numsegments*4 + 1
+			indices[#indices + 1] = {i + 2, i + 0, i + 1, i + 3}
+			indices[#indices + 1] = {1, 3, 4, 2}
 		end
 
 		return pmesh, PRIMITIVE.triangulate(vertices, indices), vertices
@@ -313,27 +314,27 @@ builders.tube = function(vars)
 end
 
 builders.cylinder = function(vars)
-	local maxSegments = 32
-	local numSegments = math.Clamp(math.abs(math.floor(vars._primitive_segments or maxSegments)), 1, maxSegments)
+	local maxsegments = math.Clamp(math.abs(math.floor(vars._primitive_maxsegments or 32)), 3, 32)
+	local numsegments = math.Clamp(math.abs(math.floor(vars._primitive_numsegments or maxsegments)), 1, maxsegments)
 
 	local dx = math.Clamp(math.abs(vars._primitive_dx or 1), 1, 512)*0.5
 	local dy = math.Clamp(math.abs(vars._primitive_dy or 1), 1, 512)*0.5
 	local dz = math.Clamp(math.abs(vars._primitive_dz or 1), 1, 512)*0.5
 
 	local vertices = {}
-	for i = 0, numSegments do
-		local a = math.rad((i / maxSegments) * -360)
-		table.insert(vertices, Vector(math.sin(a)*dx, math.cos(a)*dy, dz))
-		table.insert(vertices, Vector(math.sin(a)*dx, math.cos(a)*dy, -dz))
-		table.insert(vertices, Vector(0, 0, dz))
-		table.insert(vertices, Vector(0, 0, -dz))
+	for i = 0, numsegments do
+		local a = math.rad((i / maxsegments) * -360)
+		vertices[#vertices + 1] = Vector(math.sin(a)*dx, math.cos(a)*dy, dz)
+		vertices[#vertices + 1] = Vector(math.sin(a)*dx, math.cos(a)*dy, -dz)
+		vertices[#vertices + 1] = Vector(0, 0, dz)
+		vertices[#vertices + 1] = Vector(0, 0, -dz)
 	end
 
 	local pmesh = {}
-	if numSegments ~= maxSegments then
+	if numsegments ~= maxsegments then
 		pmesh = { {}, {} }
 		for i = 1, #vertices do
-			table.insert(pmesh[i - 1 < (maxSegments*2 + 2) and 1 or 2], vertices[i])
+			table.insert(pmesh[i - 1 < (maxsegments*2 + 2) and 1 or 2], vertices[i])
 		end
 	else
 		pmesh = { vertices }
@@ -344,15 +345,95 @@ builders.cylinder = function(vars)
 	else
 		local indices = {}
 		for i = 1, #vertices - 4, 4 do
-			table.insert(indices, {i + 0, i + 4, i + 6, i + 2})
-			table.insert(indices, {i + 4, i + 0, i + 1, i + 5})
-			table.insert(indices, {i + 2, i + 6, i + 7, i + 3})
-			table.insert(indices, {i + 5, i + 1, i + 3, i + 7})
+			indices[#indices + 1] = {i + 0, i + 4, i + 6, i + 2}
+			indices[#indices + 1] = {i + 4, i + 0, i + 1, i + 5}
+			indices[#indices + 1] = {i + 2, i + 6, i + 7, i + 3}
+			indices[#indices + 1] = {i + 5, i + 1, i + 3, i + 7}
 		end
-		if numSegments ~= maxSegments then
-			local i = numSegments*4 + 1
-			table.insert(indices, {i + 2, i + 0, i + 1, i + 3})
-			table.insert(indices, {1, 3, 4, 2})
+
+		if numsegments ~= maxsegments then
+			local i = numsegments*4 + 1
+			indices[#indices + 1] = {i + 2, i + 0, i + 1, i + 3}
+			indices[#indices + 1] = {1, 3, 4, 2}
+		end
+
+		return pmesh, PRIMITIVE.triangulate(vertices, indices), vertices
+	end
+end
+
+local arc = math.pi*2
+
+builders.torus = function(vars)
+	local maxsegments = math.Clamp(math.abs(math.floor(vars._primitive_maxsegments or 32)), 3, 32)
+	local numsegments = math.Clamp(math.abs(math.floor(vars._primitive_numsegments or maxsegments)), 1, maxsegments)
+	local numrings = math.Clamp(math.abs(math.floor(vars._primitive_numrings or 16)), 3, 32)
+
+	local rad_x1 = math.Clamp(math.abs(vars._primitive_dx or 1), 1, 512)*0.5
+	local rad_x2 = math.Clamp(math.abs(vars._primitive_thickness or 1), 0.5, 512)
+	local rad_y1 = math.Clamp(math.abs(vars._primitive_dy or 1), 1, 512)*0.5
+	local rad_y2 = math.Clamp(math.abs(vars._primitive_thickness or 1), 0.5, 512)
+	local rad_z = math.Clamp(math.abs(vars._primitive_dz or 1), 1, 512)*0.5
+
+	local pmesh = {}
+
+	do
+		local numrings = math.min(6, numrings)
+
+		local vertices = {}
+		for j = 0, numrings do
+			for i = 0, maxsegments do
+				local u = i / maxsegments * arc
+				local v = j / numrings * arc
+				vertices[#vertices + 1] = Vector((rad_x1 + rad_x2*math.cos(v))*math.cos(u), (rad_y1 + rad_y2*math.cos(v))*math.sin(u), rad_z*math.sin(v))
+			end
+		end
+
+		for j = 1, numrings do
+			for i = 1, numsegments do
+				if not pmesh[i] then
+					pmesh[i] = {}
+				end
+
+				local part = pmesh[i]
+				part[#part + 1] = vertices[(maxsegments + 1)*j + i]
+				part[#part + 1] = vertices[(maxsegments + 1)*(j - 1) + i]
+				part[#part + 1] = vertices[(maxsegments + 1)*(j - 1) + i + 1]
+				part[#part + 1] = vertices[(maxsegments + 1)*j + i + 1]
+			end
+		end
+	end
+
+	if SERVER then
+		return pmesh
+
+	else
+		local vertices = {}
+		for j = 0, numrings do
+			for i = 0, maxsegments do
+				local u = i / maxsegments * arc
+				local v = j / numrings * arc
+				vertices[#vertices + 1] = Vector((rad_x1 + rad_x2*math.cos(v))*math.cos(u), (rad_y1 + rad_y2*math.cos(v))*math.sin(u), rad_z*math.sin(v))
+			end
+		end
+
+		local indices = {}
+		for j = 1, numrings do
+			for i = 1, numsegments do
+				indices[#indices + 1] = {(maxsegments + 1)*j + i, (maxsegments + 1)*(j - 1) + i, (maxsegments + 1)*(j - 1) + i + 1, (maxsegments + 1)*j + i + 1}
+			end
+		end
+
+		if numsegments ~= maxsegments then
+			local cap1 = {}
+			local cap2 = {}
+
+			for j = 1, numrings do
+				cap1[#cap1 + 1] = (maxsegments + 1)*j + 1
+				cap2[#cap2 + 1] = (maxsegments + 1)*(numrings - j) + numsegments + 1
+			end
+
+			indices[#indices + 1] = cap1
+			indices[#indices + 1] = cap2
 		end
 
 		return pmesh, PRIMITIVE.triangulate(vertices, indices), vertices

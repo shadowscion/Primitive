@@ -16,8 +16,9 @@ typevars.cube = { "dx", "dy", "dz" }
 typevars.wedge = { "dx", "dy", "dz" }
 typevars.wedge_corner = { "dx", "dy", "dz" }
 typevars.pyramid = { "dx", "dy", "dz" }
-typevars.cylinder = { "dx", "dy", "dz", "segments" }
-typevars.tube = { "dx", "dy", "dz", "segments", "thickness" }
+typevars.cylinder = { "dx", "dy", "dz", "maxsegments", "numsegments" }
+typevars.tube = { "dx", "dy", "dz", "maxsegments", "numsegments", "thickness" }
+typevars.torus = { "dx", "dy", "dz", "maxsegments", "numsegments", "thickness", "numrings" }
 for k, v in pairs(typevars) do
 	local t = {}
 	for i, j in pairs(v) do
@@ -26,7 +27,12 @@ for k, v in pairs(typevars) do
 	typevars[k] = t
 end
 
+local defaults = {}
+defaults.generic = {dx=48,dy=48,dz=48,maxsegments=32,numsegments=32,numrings=16,thickness=3,dbg=false}
+defaults.torus = {dz=12,thickness=6}
+
 if SERVER then
+
 	local function spawn_setup(ply, args)
 		if not IsValid(ply) or not scripted_ents.GetStored("prop_primitive") then return end
 		if scripted_ents.GetMember("prop_primitive", "AdminOnly") and not ply:IsAdmin() then return end
@@ -47,8 +53,15 @@ if SERVER then
 		if not tr.Hit then return end
 
 		local ent = ents.Create("prop_primitive")
-		ent:SetModel("models/hunter/blocks/cube025x025x025.mdl")
+
 		ent:Set_primitive_type(primitive_type)
+
+		local typedef = defaults[primitive_type]
+		for k, v in pairs(defaults.generic) do
+			ent["Set_primitive_" .. k](ent, typedef and typedef[k] or v)
+		end
+
+		ent:SetModel("models/hunter/blocks/cube025x025x025.mdl")
 		ent:SetPos(tr.HitPos + tr.HitNormal*(ent:Get_primitive_dz()*0.5 + 6))
 		ent:Spawn()
 		ent:Activate()
@@ -105,7 +118,7 @@ end
 function ENT:SetupDataTables()
 	local cat = "Config"
 	self:NetworkVar("String", 0, "_primitive_type", {KeyName="_primitive_type",Edit={order=100,category=cat,title="Type",type="Combo",colorOverride=true,text="cube",
-		values={cube="cube",cylinder="cylinder",tube="tube",wedge="wedge",wedge_corner="wedge_corner",pyramid="pyramid"}}})
+		values={torus="torus",cube="cube",cylinder="cylinder",tube="tube",wedge="wedge",wedge_corner="wedge_corner",pyramid="pyramid"}}})
 	self:NetworkVar("Bool", 0, "_primitive_dbg", {KeyName="_primitive_dbg",Edit={order=101,category=cat,title="Debug",type="Boolean",colorOverride=true}})
 
 	local cat = "Dimensions"
@@ -114,25 +127,19 @@ function ENT:SetupDataTables()
 	self:NetworkVar("Float", 2, "_primitive_dz", {KeyName="_primitive_dz",Edit={order=202,category=cat,title="Length Z",type="Float",min=0.5,max=512}})
 
 	local cat = "Modifiers"
-	self:NetworkVar("Int", 0, "_primitive_segments", {KeyName="_primitive_segments",Edit={order=300,category=cat,title="Segments",type="Int",min=1,max=32}})
-	self:NetworkVar("Float", 3, "_primitive_thickness", {KeyName="_primitive_thickness",Edit={order=301,category=cat,title="Thickness",type="Float",min=0,max=512}})
+	self:NetworkVar("Int", 0, "_primitive_maxsegments", {KeyName="_primitive_maxsegments",Edit={order=300,category=cat,title="Max Segments",type="Int",min=3,max=32}})
+	self:NetworkVar("Int", 1, "_primitive_numsegments", {KeyName="_primitive_numsegments",Edit={order=301,category=cat,title="Num Segments",type="Int",min=1,max=32}})
+	self:NetworkVar("Int", 2, "_primitive_numrings", {KeyName="_primitive_numrings",Edit={order=302,category=cat,title="Num Rings",type="Int",min=3,max=31}})
+	self:NetworkVar("Float", 3, "_primitive_thickness", {KeyName="_primitive_thickness",Edit={order=303,category=cat,title="Thickness",type="Float",min=0,max=512}})
 
 	self:NetworkVarNotify("_primitive_type", self._primitive_trigger_update)
 	self:NetworkVarNotify("_primitive_dx", self._primitive_trigger_update)
 	self:NetworkVarNotify("_primitive_dy", self._primitive_trigger_update)
 	self:NetworkVarNotify("_primitive_dz", self._primitive_trigger_update)
-	self:NetworkVarNotify("_primitive_segments", self._primitive_trigger_update)
+	self:NetworkVarNotify("_primitive_maxsegments", self._primitive_trigger_update)
+	self:NetworkVarNotify("_primitive_numsegments", self._primitive_trigger_update)
+	self:NetworkVarNotify("_primitive_numrings", self._primitive_trigger_update)
 	self:NetworkVarNotify("_primitive_thickness", self._primitive_trigger_update)
-
-	if SERVER then
-		self:Set_primitive_type("cube")
-		self:Set_primitive_dbg(false)
-		self:Set_primitive_dx(48)
-		self:Set_primitive_dy(48)
-		self:Set_primitive_dz(48)
-		self:Set_primitive_segments(32)
-		self:Set_primitive_thickness(1)
-	end
 
 	self.queue_rebuild = CurTime()
 end
@@ -228,6 +235,9 @@ function ENT:Think()
 				end
 			end
 
+			self.mesh_verts = verts or nil
+			self.mesh_tris = vmesh or nil
+
 			if vmesh and #vmesh >= 3 then
 				if self.mesh_object and self.mesh_object:IsValid() then
 					self.mesh_data = nil
@@ -235,7 +245,7 @@ function ENT:Think()
 				end
 				self.mesh_object = Mesh()
 				self.mesh_object:BuildFromTriangles(vmesh)
-				self.mesh_data = { Mesh = self.mesh_object, Material = wireframe, verts = verts, tris = #vmesh / 3 }
+				self.mesh_data = { Mesh = self.mesh_object, Material = wireframe }
 			end
 
 			local maxs = Vector(self:Get_primitive_dx(), self:Get_primitive_dy(), self:Get_primitive_dz())*0.5
@@ -311,7 +321,7 @@ if CLIENT then
 			local min, max = self:GetRenderBounds()
 			render.DrawWireframeBox(pos, self:GetAngles(), min, max, c_cya)
 
-			if self.mesh_data and self.mesh_data.verts then
+			if self.mesh_verts then
 				cam.Start2D()
 
 				surface.SetFont("Default")
@@ -320,14 +330,17 @@ if CLIENT then
 				local pos = self:LocalToWorld(max * 1.1):ToScreen()
 
 				surface.SetTextPos(pos.x, pos.y)
-				surface.DrawText(string.format("verts (%d)", #self.mesh_data.verts))
-				surface.SetTextPos(pos.x, pos.y + 16)
-				surface.DrawText(string.format("tris (%d)", self.mesh_data.tris))
+				surface.DrawText(string.format("verts (%d)", #self.mesh_verts))
 
-				for k, v in ipairs(self.mesh_data.verts) do
+				if self.mesh_tris then
+					surface.SetTextPos(pos.x, pos.y + 14)
+					surface.DrawText(string.format("tris (%d)", #self.mesh_tris / 3))
+				end
+
+				for k, v in ipairs(self.mesh_verts) do
 					local pos = self:LocalToWorld(v):ToScreen()
 					surface.SetTextPos(pos.x, pos.y)
-					surface.DrawText(k - 0)
+					surface.DrawText(k)
 				end
 
 				cam.End2D()
