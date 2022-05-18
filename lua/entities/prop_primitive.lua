@@ -12,13 +12,16 @@ cleanup.Register("prop_primitive")
 local wireframe = Material("hunter/myplastic")
 
 local typevars = {}
-typevars.cube = { "dx", "dy", "dz" }
-typevars.wedge = { "dx", "dy", "dz" }
-typevars.wedge_corner = { "dx", "dy", "dz" }
-typevars.pyramid = { "dx", "dy", "dz" }
-typevars.cylinder = { "dx", "dy", "dz", "maxsegments", "numsegments" }
-typevars.tube = { "dx", "dy", "dz", "maxsegments", "numsegments", "thickness" }
-typevars.torus = { "dx", "dy", "dz", "maxsegments", "numsegments", "thickness", "numrings" }
+typevars.cube = {"dx", "dy", "dz"}
+typevars.wedge = {"dx", "dy", "dz"}
+typevars.wedge_corner = {"dx", "dy", "dz"}
+typevars.cylinder = {"dx", "dy", "dz", "maxsegments", "numsegments"}
+typevars.tube = {"dx", "dy", "dz", "maxsegments", "numsegments", "thickness"}
+typevars.torus = {"dx", "dy", "dz", "maxsegments", "numsegments", "thickness", "numrings"}
+typevars.sphere = {"dx", "dy", "dz", "numsegments"}
+typevars.dome = {"dx", "dy", "dz", "numsegments"}
+typevars.cone = {"dx", "dy", "dz", "maxsegments", "numsegments"}
+typevars.pyramid = {"dx", "dy", "dz"}
 for k, v in pairs(typevars) do
 	local t = {}
 	for i, j in pairs(v) do
@@ -28,10 +31,11 @@ for k, v in pairs(typevars) do
 end
 
 local defaults = {}
-defaults.generic = {dx=48,dy=48,dz=48,maxsegments=32,numsegments=32,numrings=16,thickness=3,dbg=false}
-defaults.torus = {dz=12,thickness=6}
+defaults.generic = {dx = 48, dy = 48, dz = 48, maxsegments = 16, numsegments = 16, numrings = 16, thickness = 3, dbg = false}
+defaults.torus = {dz = 12, thickness = 6}
 
 if SERVER then
+	util.AddNetworkString("primitive_notify")
 
 	local function spawn_setup(ply, args)
 		if not IsValid(ply) or not scripted_ents.GetStored("prop_primitive") then return end
@@ -117,20 +121,32 @@ end
 
 function ENT:SetupDataTables()
 	local cat = "Config"
-	self:NetworkVar("String", 0, "_primitive_type", {KeyName="_primitive_type",Edit={order=100,category=cat,title="Type",type="Combo",colorOverride=true,text="cube",
-		values={torus="torus",cube="cube",cylinder="cylinder",tube="tube",wedge="wedge",wedge_corner="wedge_corner",pyramid="pyramid"}}})
-	self:NetworkVar("Bool", 0, "_primitive_dbg", {KeyName="_primitive_dbg",Edit={order=101,category=cat,title="Debug",type="Boolean",colorOverride=true}})
+	self:NetworkVar("String", 0, "_primitive_type", {KeyName = "_primitive_type", Edit = {order = 100, category = cat, title = "Type", type = "Combo", colorOverride = true, text = "cube",
+		values = {
+			pyramid = "pyramid",
+			cone = "cone",
+			dome = "dome",
+			sphere = "sphere",
+			torus = "torus",
+			cube = "cube",
+			cylinder = "cylinder",
+			tube = "tube",
+			wedge = "wedge",
+			wedge_corner = "wedge_corner",
+		}
+	}})
+	self:NetworkVar("Bool", 0, "_primitive_dbg", {KeyName = "_primitive_dbg", Edit = {order = 101, category = cat, title = "Debug", type = "Boolean", colorOverride = true}})
 
 	local cat = "Dimensions"
-	self:NetworkVar("Float", 0, "_primitive_dx", {KeyName="_primitive_dx",Edit={order=200,category=cat,title="Length X",type="Float",min=0.5,max=512}})
-	self:NetworkVar("Float", 1, "_primitive_dy", {KeyName="_primitive_dy",Edit={order=201,category=cat,title="Length Y",type="Float",min=0.5,max=512}})
-	self:NetworkVar("Float", 2, "_primitive_dz", {KeyName="_primitive_dz",Edit={order=202,category=cat,title="Length Z",type="Float",min=0.5,max=512}})
+	self:NetworkVar("Float", 0, "_primitive_dx", {KeyName = "_primitive_dx", Edit = {order = 200, category = cat, title = "Length X", type = "Float", min = 0.5, max = 512}})
+	self:NetworkVar("Float", 1, "_primitive_dy", {KeyName = "_primitive_dy", Edit = {order = 201, category = cat, title = "Length Y", type = "Float", min = 0.5, max = 512}})
+	self:NetworkVar("Float", 2, "_primitive_dz", {KeyName = "_primitive_dz", Edit = {order = 202, category = cat, title = "Length Z", type = "Float", min = 0.5, max = 512}})
 
 	local cat = "Modifiers"
-	self:NetworkVar("Int", 0, "_primitive_maxsegments", {KeyName="_primitive_maxsegments",Edit={order=300,category=cat,title="Max Segments",type="Int",min=3,max=32}})
-	self:NetworkVar("Int", 1, "_primitive_numsegments", {KeyName="_primitive_numsegments",Edit={order=301,category=cat,title="Num Segments",type="Int",min=1,max=32}})
-	self:NetworkVar("Int", 2, "_primitive_numrings", {KeyName="_primitive_numrings",Edit={order=302,category=cat,title="Num Rings",type="Int",min=3,max=31}})
-	self:NetworkVar("Float", 3, "_primitive_thickness", {KeyName="_primitive_thickness",Edit={order=303,category=cat,title="Thickness",type="Float",min=0,max=512}})
+	self:NetworkVar("Int", 0, "_primitive_maxsegments", {KeyName = "_primitive_maxsegments", Edit = {order = 300, category = cat, title = "Max Segments", type = "Int", min = 3, max = 32}})
+	self:NetworkVar("Int", 1, "_primitive_numsegments", {KeyName = "_primitive_numsegments", Edit = {order = 301, category = cat, title = "Num Segments", type = "Int", min = 1, max = 32}})
+	self:NetworkVar("Int", 2, "_primitive_numrings", {KeyName = "_primitive_numrings", Edit = {order = 302, category = cat, title = "Num Rings", type = "Int", min = 3, max = 31}})
+	self:NetworkVar("Float", 3, "_primitive_thickness", {KeyName = "_primitive_thickness", Edit = {order = 303, category = cat, title = "Thickness", type = "Float", min = 0, max = 512}})
 
 	self:NetworkVarNotify("_primitive_type", self._primitive_trigger_update)
 	self:NetworkVarNotify("_primitive_dx", self._primitive_trigger_update)
@@ -186,17 +202,19 @@ function ENT:RebuildPhysics(pmesh)
 		return
 	end
 
+	--[[
 	local dx = self:Get_primitive_dx()
 	local dy = self:Get_primitive_dy()
 	local dz = self:Get_primitive_dz()
 
 	local density = 0.001
-	local mass = (dx * dy * dz)*density
+	local mass = (dx*dy*dz)*density
 
 	physobj:SetMass(mass)
 	physobj:SetInertia(Vector(dx, dy, dz):GetNormalized()*mass)
-	physobj:EnableMotion(move)
+	]]
 
+	physobj:EnableMotion(move)
 	if not sleep then
 		physobj:Wake()
 	end
@@ -245,7 +263,7 @@ function ENT:Think()
 				end
 				self.mesh_object = Mesh()
 				self.mesh_object:BuildFromTriangles(vmesh)
-				self.mesh_data = { Mesh = self.mesh_object, Material = wireframe }
+				self.mesh_data = {Mesh = self.mesh_object, Material = wireframe}
 			end
 
 			local maxs = Vector(self:Get_primitive_dx(), self:Get_primitive_dy(), self:Get_primitive_dz())*0.5
@@ -327,14 +345,14 @@ if CLIENT then
 				surface.SetFont("Default")
 				surface.SetTextColor(c_yel)
 
-				local pos = self:LocalToWorld(max * 1.1):ToScreen()
+				local pos = self:LocalToWorld(max*1.1):ToScreen()
 
 				surface.SetTextPos(pos.x, pos.y)
 				surface.DrawText(string.format("verts (%d)", #self.mesh_verts))
 
 				if self.mesh_tris then
 					surface.SetTextPos(pos.x, pos.y + 14)
-					surface.DrawText(string.format("tris (%d)", #self.mesh_tris / 3))
+					surface.DrawText(string.format("tris (%d)", #self.mesh_tris/3))
 				end
 
 				for k, v in ipairs(self.mesh_verts) do

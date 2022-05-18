@@ -1,4 +1,3 @@
-
 local PANEL = {}
 
 function PANEL:Init()
@@ -50,17 +49,17 @@ local function PaintRow(self, w, h)
 
 	if editing then
 		surface.SetDrawColor(Skin.Colours.Properties.Column_Selected)
-		surface.DrawRect(w * 0.45, 0, w, h)
-		surface.DrawRect(0, 0, w * 0.45, h)
+		surface.DrawRect(w*0.45, 0, w, h)
+		surface.DrawRect(0, 0, w*0.45, h)
 	elseif self.colorOverride or not disabled then
 		surface.SetDrawColor(color_valid)
-		surface.DrawRect(w * 0.45, 0, w, h)
-		surface.DrawRect(0, 0, w * 0.45, h)
+		surface.DrawRect(w*0.45, 0, w, h)
+		surface.DrawRect(0, 0, w*0.45, h)
 	end
 
 	surface.SetDrawColor(Skin.Colours.Properties.Border)
 	surface.DrawRect(w - 1, 0, 1, h)
-	surface.DrawRect(w * 0.45, 0, 1, h)
+	surface.DrawRect(w*0.45, 0, 1, h)
 	surface.DrawRect(0, h - 1, w, 1)
 
 	if disabled then
