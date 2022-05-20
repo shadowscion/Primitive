@@ -68,7 +68,7 @@ if SERVER then
 			duplicator.DoGeneric(ent, data)
 		end
 
-		gamemode.Call("PlayerSpawnedProp", ply, nil, ent)
+		gamemode.Call("PlayerSpawnedProp", ply, "models/hunter/blocks/cube025x025x025.mdl", ent)
 
 		ply:AddCleanup("props", ent)
 
