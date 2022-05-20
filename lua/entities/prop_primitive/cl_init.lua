@@ -57,6 +57,13 @@ function ENT:_primitive_postupdate(success, shape, ret)
 		self.primitive_render_vert = shape.vertex
 	end
 
+	local typevars = self:Get_primitive_typevars()
+	if typevars then
+		for k, v in pairs(self:GetEditingData()) do
+			v.enabled = (v.global or typevars[k] ~= nil) and true or false
+		end
+	end
+
 	if not success then
 		return
 	end

@@ -39,7 +39,7 @@ if SERVER then
 
 		ply:AddCleanup("props", ent)
 
-		ent:_primitive_spawn(args[1])
+		ent:_primitive_reset(args[1])
 	end
 
 	concommand.Add("primitive_spawn", function(ply, cmd, args)
