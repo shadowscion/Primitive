@@ -16,34 +16,34 @@ end
 function ENT:Draw()
 	self:DrawModel()
 
-	/*
-	render.DrawLine(self:GetPos(), self:GetPos() + self:GetForward()*6, Color(0, 255, 0))
-	render.DrawLine(self:GetPos(), self:GetPos() + self:GetRight()*6, Color(255, 0, 0))
-	render.DrawLine(self:GetPos(), self:GetPos() + self:GetUp()*6, Color(0, 0, 255))
+	if self:Get_primitive_dbg() then
+		render.DrawLine(self:GetPos(), self:GetPos() + self:GetForward()*6, Color(0, 255, 0))
+		render.DrawLine(self:GetPos(), self:GetPos() + self:GetRight()*6, Color(255, 0, 0))
+		render.DrawLine(self:GetPos(), self:GetPos() + self:GetUp()*6, Color(0, 0, 255))
 
-	local min, max = self:GetCollisionBounds()
-	render.DrawWireframeBox(self:GetPos(), self:GetAngles(), min, max, Color(255, 255, 0, 25))
+		local min, max = self:GetCollisionBounds()
+		render.DrawWireframeBox(self:GetPos(), self:GetAngles(), min, max, Color(255, 255, 0, 25))
 
-	if self.primitive_render_vert then
-		cam.Start2D()
+		if self.primitive_render_vert then
+			cam.Start2D()
 
-		surface.SetFont("Default")
-		surface.SetTextColor(255, 255, 0, 150)
-		surface.SetDrawColor(255, 255, 0, 255)
+			surface.SetFont("Default")
+			surface.SetTextColor(255, 255, 0, 150)
+			surface.SetDrawColor(255, 255, 0, 255)
 
-		for k, v in pairs(self.primitive_render_vert) do
-			--local pos = self:LocalToWorld(v + v:GetNormalized()*2):ToScreen()
-			local pos = self:LocalToWorld(v):ToScreen()
+			for k, v in pairs(self.primitive_render_vert) do
+				--local pos = self:LocalToWorld(v + v:GetNormalized()*2):ToScreen()
+				local pos = self:LocalToWorld(v):ToScreen()
 
-			surface.SetTextPos(pos.x, pos.y)
-			surface.DrawText(k)
+				surface.SetTextPos(pos.x, pos.y)
+				surface.DrawText(k)
 
-			surface.DrawRect(pos.x, pos.y, 2, 2)
+				surface.DrawRect(pos.x, pos.y, 2, 2)
+			end
+
+			cam.End2D()
 		end
-
-		cam.End2D()
 	end
-	*/
 end
 
 function ENT:GetRenderMesh()
@@ -53,11 +53,13 @@ end
 
 ----------------------------------------------------------------
 function ENT:_primitive_postupdate(success, shape, ret)
+	if istable(shape) and istable(shape.vertex) then
+		self.primitive_render_vert = shape.vertex
+	end
+
 	if not success then
 		return
 	end
-
-	self.primitive_render_vert = shape.vertex
 
 	if self.primitive_render_mesh and IsValid(self.primitive_render_mesh.Mesh) then
 		self.primitive_render_mesh.Mesh:Destroy()

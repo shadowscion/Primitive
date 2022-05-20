@@ -16,7 +16,7 @@ properties.Add("primitive_edit", {
 
 	Action = function(self, ent)
 		local editor = g_ContextMenu:Add("primitive_editor")
-		editor:SetSize(320, 320)
+		editor:SetSize(320, 400)
 		editor:Center()
 		editor:SetEntity(ent)
 	end

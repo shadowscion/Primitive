@@ -81,6 +81,7 @@ else
 		end
 
 		local node_a = tree:AddNode("Primitive", "icon16/shape_square.png")
+		node_a.Icon:SetImageColor(Color(0, 255, 255))
 
 		node_a:SetExpanded(tobool(cookie.GetNumber("primitive.smx", 0)))
 		node_a.Expander.DoClick = function()
@@ -90,6 +91,7 @@ else
 
 		for k, v in SortedPairs(g_primitive.primitive_shapes) do
 			local node_b = node_a:AddNode(k, "icon16/bullet_blue.png")
+			node_b.Icon:SetImageColor(Color(0, 255, 255))
 			node_b.DoClick = function(self)
 				tree:SetSelectedItem(nil)
 

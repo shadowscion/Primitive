@@ -10,6 +10,8 @@ cleanup.Register("prop_primitive")
 
 ----------------------------------------------------------------
 local shape_generic = {
+	["_primitive_dbg"] = false,
+
 	["_primitive_type"] = "cube",
 	["_primitive_dx"] = 48,
 	["_primitive_dy"] = 48,
@@ -112,6 +114,15 @@ shape_typevars["dome"] = {
 	["_primitive_dz"] = 48,
 	["_primitive_numseg"] = 8,
 }
+shape_typevars["cube_tube"] = {
+	["_primitive_type"] = "cube_tube",
+	["_primitive_dx"] = 48,
+	["_primitive_dy"] = 48,
+	["_primitive_dz"] = 48,
+	["_primitive_dt"] = 4,
+	["_primitive_numseg"] = 4,
+	["_primitive_numring"] = 16,
+}
 
 function ENT:Get_primitive_typevars(shape)
 	return shape_typevars[shape or self:Get_primitive_type()]
@@ -171,6 +182,7 @@ end
 function ENT:SetupDataTables()
 	local category = "Config"
 	self:NetworkVar("String", 0, "_primitive_type", {KeyName = "_primitive_type", Edit = {order = 100, category = category, title = "Type", type = "Combo", values = shape_names}})
+	self:NetworkVar("Bool", 0, "_primitive_dbg", {KeyName = "_primitive_dbg", Edit = {order = 101, category = category, global = true, title = "Debug", type = "Boolean"}})
 
 	local category = "Dimensions"
 	self:NetworkVar("Float", 0, "_primitive_dx", {KeyName = "_primitive_dx", Edit = {order = 200, category = category, title = "Length X", type = "Float", min = 1, max = 1024}})
@@ -234,9 +246,8 @@ function ENT:_primitive_update()
 		return
 	end
 
-	local move, sleep, mass
 	if istable(shape.phys) then
-		local constraints
+		local move, sleep, mass, constraints
 		if SERVER then
 			local phys = self:GetPhysicsObject()
 			if phys and phys:IsValid() then
@@ -263,10 +274,19 @@ function ENT:_primitive_update()
 			self:EnableCustomCollisions(true)
 		end
 
-		if SERVER and constraints and next(constraints) then
-			timer.Simple(0, function()
-				ApplyConstraints(self, constraints)
-			end)
+		if SERVER then
+			local phys = self:GetPhysicsObject()
+			if phys and phys:IsValid() then
+				phys:EnableMotion(move)
+				if not sleep then phys:Wake() end
+				if mass then phys:SetMass(mass) end
+			end
+
+			if constraints and next(constraints) then
+				timer.Simple(0, function()
+					ApplyConstraints(self, constraints)
+				end)
+			end
 		end
 	end
 
@@ -282,13 +302,6 @@ function ENT:_primitive_update()
 		end
 
 		self:SetRenderBounds(self:GetCollisionBounds())
-	else
-		local phys = self:GetPhysicsObject()
-		if phys and phys:IsValid() then
-			phys:EnableMotion(move)
-			if not sleep then phys:Wake() end
-			if mass then phys:SetMass(mass) end
-		end
 	end
 
 	self:_primitive_postupdate(true, shape, ret)

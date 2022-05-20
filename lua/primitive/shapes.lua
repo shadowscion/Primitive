@@ -1,38 +1,6 @@
 
 
 ----------------------------------------------------------------
-local math = math
-local pi = math.pi
-local tau = math.pi*2
-local Vector = Vector
-
-local function map(x, in_min, in_max, out_min, out_max)
-    return (x - in_min)*(out_max - out_min)/(in_max - in_min) + out_min
-end
-
---[[
-local name = "generic"
-shapes[name] = function(vars, nophys)
-	local vertex, index, phys
-
-	--local dx = (vars.dx or 1)*0.5
-	--local dy = (vars.dy or 1)*0.5
-	--local dz = (vars.dz or 1)*0.5
-
-	if CLIENT then
-
-	end
-
-	if not nophys then
-
-	end
-
-	return {vertex = vertex, index = index, phys = {phys}}
-end
-]]
-
-
-----------------------------------------------------------------
 local addon = g_primitive or {}
 local shapes = {}
 addon.primitive_shapes = shapes
@@ -65,6 +33,17 @@ local function primitive_build(vars, nophys, func)
 	return shape, ret
 end
 addon.primitive_build = primitive_build
+
+
+----------------------------------------------------------------
+local math = math
+local pi = math.pi
+local tau = math.pi*2
+local Vector = Vector
+
+local function map(x, in_min, in_max, out_min, out_max)
+    return (x - in_min)*(out_max - out_min)/(in_max - in_min) + out_min
+end
 
 local function primitive_triangulate(vertices, indices)
 	local uv = 1/48
@@ -121,6 +100,29 @@ local function primitive_triangulate(vertices, indices)
 	return tris
 end
 addon.primitive_triangulate = primitive_triangulate
+
+
+----------------------------------------------------------------
+--[[
+local name = "generic"
+shapes[name] = function(vars, nophys)
+	local vertex, index, phys
+
+	--local dx = (vars.dx or 1)*0.5
+	--local dy = (vars.dy or 1)*0.5
+	--local dz = (vars.dz or 1)*0.5
+
+	if CLIENT then
+
+	end
+
+	if not nophys then
+
+	end
+
+	return {vertex = vertex, index = index, phys = {phys}}
+end
+]]
 
 
 ----------------------------------------------------------------
@@ -755,3 +757,117 @@ shapes[name] = function(vars, nophys)
 	vars.isdome = true
 	return shapes["sphere"](vars, nophys)
 end
+
+
+----------------------------------------------------------------
+local name = "cube_tube"
+shapes[name] = function(vars, nophys)
+	local vertex, index, phys
+
+	local dx = (vars.dx or 1)*0.5
+	local dy = (vars.dy or 1)*0.5
+	local dz = (vars.dz or 1)*0.5
+	local dt = math.min(vars.dt or 1, dx, dy)
+
+	if dt == dx or dt == dy then
+		return shapes["cube"](vars, nophys)
+	end
+
+	local numseg = vars.numseg or 4
+	if numseg > 4 then numseg = 4 elseif numseg < 1 then numseg = 1 end
+
+	local numring = 4*math.Round((vars.numring or 32)/4)
+	if numring < 4 then numring = 4 elseif numring > 32 then numring = 32 end
+
+	local cube_angle = Angle(0, 90, 0)
+	local cube_corner0 = Vector(1, 0, 0)
+	local cube_corner1 = Vector(1, 1, 0)
+	local cube_corner2 = Vector(0, 1, 0)
+
+	local ring_steps0 = numring/4
+	local ring_steps1 = numring/2
+	local capped = numseg ~= 4
+	if CLIENT then
+		index = capped and {{8, 7, 1, 4}} or {}
+	end
+
+	vertex = {}
+
+	if not nophys then
+		phys = {}
+	end
+
+	for i = 0, numseg - 1 do
+		cube_corner0:Rotate(cube_angle)
+		cube_corner1:Rotate(cube_angle)
+		cube_corner2:Rotate(cube_angle)
+
+		local part
+		if not nophys then part = {} end
+
+		vertex[#vertex + 1] = Vector(cube_corner0.x*dx, cube_corner0.y*dy, -dz)
+		vertex[#vertex + 1] = Vector(cube_corner1.x*dx, cube_corner1.y*dy, -dz)
+		vertex[#vertex + 1] = Vector(cube_corner2.x*dx, cube_corner2.y*dy, -dz)
+		vertex[#vertex + 1] = Vector(cube_corner0.x*dx, cube_corner0.y*dy, dz)
+		vertex[#vertex + 1] = Vector(cube_corner1.x*dx, cube_corner1.y*dy, dz)
+		vertex[#vertex + 1] = Vector(cube_corner2.x*dx, cube_corner2.y*dy, dz)
+
+		local count_end0 = #vertex
+		if CLIENT then
+			index[#index + 1] = {count_end0 - 5, count_end0 - 4, count_end0 - 1, count_end0 - 2}
+			index[#index + 1] = {count_end0 - 4, count_end0 - 3, count_end0 - 0, count_end0 - 1}
+		end
+
+		local ring_angle = -i*90
+		for j = 0, ring_steps0 do
+			local a = math.rad((j/numring)* -360 + ring_angle)
+			vertex[#vertex + 1] = Vector(math.sin(a)*(dx - dt), math.cos(a)*(dy - dt), -dz)
+			vertex[#vertex + 1] = Vector(math.sin(a)*(dx - dt), math.cos(a)*(dy - dt), dz)
+		end
+
+		local count_end1 = #vertex
+		if not nophys then
+			phys[#phys + 1] = {
+				vertex[count_end0 - 0],
+				vertex[count_end0 - 3],
+				vertex[count_end0 - 4],
+				vertex[count_end0 - 1],
+				vertex[count_end1 - 0],
+				vertex[count_end1 - 1],
+				vertex[count_end1 - ring_steps1*0.5],
+				vertex[count_end1 - ring_steps1*0.5 - 1],
+			}
+			phys[#phys + 1] = {
+				vertex[count_end0 - 2],
+				vertex[count_end0 - 5],
+				vertex[count_end0 - 4],
+				vertex[count_end0 - 1],
+				vertex[count_end1 - ring_steps1],
+				vertex[count_end1 - ring_steps1 - 1],
+				vertex[count_end1 - ring_steps1*0.5],
+				vertex[count_end1 - ring_steps1*0.5 - 1],
+			}
+		end
+
+		if CLIENT then
+			index[#index + 1] = {count_end0 - 1, count_end0 - 0, count_end1 - 0}
+			index[#index + 1] = {count_end0 - 1, count_end1 - ring_steps1, count_end0 - 2}
+			index[#index + 1] = {count_end0 - 4, count_end1 - 1, count_end0 - 3}
+			index[#index + 1] = {count_end0 - 4, count_end0 - 5, count_end1 - ring_steps1 - 1}
+
+			for j = 0, ring_steps0 - 1 do
+				local count_end2 = count_end1 - j*2
+				index[#index + 1] = {count_end0 - 1, count_end2, count_end2 - 2}
+				index[#index + 1] = {count_end0 - 4, count_end2 - 3, count_end2 - 1}
+				index[#index + 1] = {count_end2, count_end2 - 1, count_end2 - 3, count_end2 - 2}
+			end
+
+			if capped and i == numseg  - 1 then
+				index[#index + 1] = {count_end0, count_end0 - 3, count_end1 - 1, count_end1}
+			end
+		end
+	end
+
+	return {vertex = vertex, index = index, phys = phys}
+end
+
