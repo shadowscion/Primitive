@@ -29,7 +29,7 @@ if SERVER then
 			return
 		end
 
-		gamemode.Call("PlayerSpawnedProp", ply, nil, ent)
+		gamemode.Call("PlayerSpawnedProp", ply, "models/hunter/blocks/cube025x025x025.mdl", ent)
 
 		undo.Create("Prop")
 			undo.SetPlayer(ply)

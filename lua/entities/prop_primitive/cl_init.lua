@@ -53,10 +53,11 @@ end
 
 ----------------------------------------------------------------
 function ENT:_primitive_postupdate(success, shape, ret)
-	self.primitive_render_vert = shape.vertex
 	if not success then
 		return
 	end
+
+	self.primitive_render_vert = shape.vertex
 
 	if self.primitive_render_mesh and IsValid(self.primitive_render_mesh.Mesh) then
 		self.primitive_render_mesh.Mesh:Destroy()
