@@ -234,14 +234,13 @@ function ENT:_primitive_update()
 		return
 	end
 
-	local move, sleep
+	local move, sleep, mass
 	if istable(shape.phys) then
 		local constraints
 		if SERVER then
 			local phys = self:GetPhysicsObject()
 			if phys and phys:IsValid() then
-				move = phys:IsMoveable()
-				sleep = phys:IsAsleep()
+				move, sleep, mass = phys:IsMoveable(), phys:IsAsleep(), phys:GetMass()
 			end
 			constraints = CopyConstraints(self)
 		end
@@ -287,9 +286,8 @@ function ENT:_primitive_update()
 		local phys = self:GetPhysicsObject()
 		if phys and phys:IsValid() then
 			phys:EnableMotion(move)
-			if not sleep then
-				phys:Wake()
-			end
+			if not sleep then phys:Wake() end
+			if mass then phys:SetMass(mass) end
 		end
 	end
 
