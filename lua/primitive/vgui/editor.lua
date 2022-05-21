@@ -1,10 +1,19 @@
 
 
 ----------------------------------------------------------------
-local color_frame_1 = Color(75, 75, 75)
-local color_label_disabled = Color(115, 115, 115)
-local color_column_disabled = Color(240, 240, 240)
-local color_strikethrough = Color(0, 0, 0)
+-- left
+local color_lcol_enabled = Color(230, 240, 230)
+local color_lcol_disabled = Color(240, 230, 230)
+local color_llbl_enabled = Color(75, 75, 75)
+local color_llbl_disabled = Color(125, 115, 115)
+
+-- right
+local color_rcol_enabled = Color(235, 240, 235)
+local color_rcol_disabled = Color(240, 235, 235)
+
+-- misc
+local color_col_strike = Color(0, 0, 0)
+local color_dframe = Color(72, 72, 75)
 
 local function PaintRow(self, w, h)
 	if not IsValid(self.Inner) then return end
@@ -14,33 +23,42 @@ local function PaintRow(self, w, h)
 	local disabled = not self.Inner:IsEnabled() or not self:IsEnabled()
 
 	if disabled then
-		surface.SetDrawColor(color_column_disabled)
-		surface.DrawRect(w*0.45, 0, w, h)
+		surface.SetDrawColor(color_lcol_disabled)
 		surface.DrawRect(0, 0, w*0.45, h)
-		surface.SetDrawColor(color_strikethrough)
+
+		surface.SetDrawColor(color_rcol_disabled)
+		surface.DrawRect(w*0.45, 0, w, h)
+
+		surface.SetDrawColor(color_col_strike)
 		surface.DrawLine(0, h*0.5, w, h*0.5)
+
+		self.Label:SetTextColor(color_llbl_disabled)
 	elseif editing then
 		surface.SetDrawColor(Skin.Colours.Properties.Column_Selected)
 		surface.DrawRect(0, 0, w*0.45, h)
+
+		self.Label:SetTextColor(Skin.Colours.Properties.Label_Selected)
+	else
+		surface.SetDrawColor(color_lcol_enabled)
+		surface.DrawRect(0, 0, w*0.45, h)
+
+		surface.SetDrawColor(color_rcol_enabled)
+		surface.DrawRect(w*0.45, 0, w, h)
+
+		self.Label:SetTextColor(color_llbl_enabled)
 	end
 
 	surface.SetDrawColor(Skin.Colours.Properties.Border)
 	surface.DrawRect(w - 1, 0, 1, h)
 	surface.DrawRect(w*0.45, 0, 1, h)
 	surface.DrawRect(0, h - 1, w, 1)
-
-	if disabled then
-		self.Label:SetTextColor(color_label_disabled)
-	elseif editing then
-		self.Label:SetTextColor(Skin.Colours.Properties.Label_Selected)
-	else
-		self.Label:SetTextColor(Skin.Colours.Properties.Label_Normal)
-	end
 end
 
 
 ----------------------------------------------------------------
 local PANEL = {}
+
+local icon_cache = {}
 
 function PANEL:Init()
 	self.PropertySheet = self:Add("DProperties")
@@ -90,6 +108,22 @@ function PANEL:Init()
 
 		row:Setup(editdata.type, editdata)
 		row.Paint = PaintRow
+
+		if editdata.type == "Combo" and editdata.icons then
+			local combo_box = row.Inner:GetChildren()[1]
+
+			for k, v in pairs(combo_box.Choices) do
+				local path = string.format(editdata.icons, v)
+				local icon = icon_cache[path]
+
+				if not icon then
+					icon_cache[path] = file.Exists("materials/" .. path, "GAME") and path or "icon16/bullet_white.png"
+					icon = icon_cache[path]
+				end
+
+				combo_box.ChoiceIcons[k] = icon
+			end
+		end
 
 		row.DataUpdate = function(_)
 			if not IsValid(pnl.m_Entity) then pnl:EntityLost() return end
@@ -141,7 +175,7 @@ end
 
 ----------------------------------------------------------------
 function PANEL:Paint(w, h)
-	surface.SetDrawColor(color_frame_1)
+	surface.SetDrawColor(color_dframe)
 	surface.DrawRect(0, 0, w, h)
 	surface.SetDrawColor(0, 0, 0)
 	surface.DrawOutlinedRect(0, 0, w, h)

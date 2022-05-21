@@ -204,7 +204,7 @@ end
 
 function ENT:SetupDataTables()
 	local category = "Configure"
-	self:NetworkVar("String", 0, "_primitive_type", {KeyName = "_primitive_type", Edit = {order = 100, category = category, title = "Type", type = "Combo", values = shape_names}})
+	self:NetworkVar("String", 0, "_primitive_type", {KeyName = "_primitive_type", Edit = {order = 100, category = category, title = "Type", type = "Combo", values = shape_names, icons = "vgui/primitive/%s.png"}})
 	self:NetworkVar("Bool", 0, "_primitive_dbg", {KeyName = "_primitive_dbg", Edit = {order = 101, category = category, global = true, title = "Debug", type = "Boolean"}})
 
 	local category = "Resize"
