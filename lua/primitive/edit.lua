@@ -1,16 +1,17 @@
 
 
-----------------------------------------------------------------
-properties.Add("primitive_edit", {
+--
+properties.Add("primitive_editor", {
 	MenuLabel = "Edit Primitive",
 	Order = 90001,
 	PrependSpacer = true,
-	MenuIcon = "icon16/pencil.png",
+	MenuIcon = "icon16/shape_ungroup.png",
 
 	Filter = function(self, ent, ply)
-		if not IsValid(ent) or ent:GetClass() ~= "prop_primitive" or not gamemode.Call("CanProperty", ply, "primitive_edit", ent) then
-			return false
-		end
+		if not IsValid(ent) then return false end
+		if not ent._primitive_canEdit then return false end
+		if ent:GetTable().Base ~= "primitive_base" then return false end
+		if not gamemode.Call("CanProperty", ply, "primitive_editor", ent) then return false end
 		return true
 	end,
 

@@ -1,6 +1,5 @@
 
 
-----------------------------------------------------------------
 -- left
 local color_lcol_enabled = Color(230, 240, 230)
 local color_lcol_disabled = Color(240, 230, 230)
@@ -55,7 +54,7 @@ local function PaintRow(self, w, h)
 end
 
 
-----------------------------------------------------------------
+--
 local PANEL = {}
 
 local icon_cache = {}
@@ -147,14 +146,14 @@ function PANEL:Init()
 end
 
 
-----------------------------------------------------------------
+--
 function PANEL:SetEntity(ent)
 	self:SetTitle(tostring(ent))
 	self.PropertySheet:SetEntity(ent)
 end
 
 
-----------------------------------------------------------------
+--
 function PANEL:PerformLayout()
 	local titlePush = 0
 	if IsValid(self.imgIcon) then
@@ -173,7 +172,7 @@ function PANEL:PerformLayout()
 end
 
 
-----------------------------------------------------------------
+--
 function PANEL:Paint(w, h)
 	surface.SetDrawColor(color_dframe)
 	surface.DrawRect(0, 0, w, h)
@@ -182,5 +181,5 @@ function PANEL:Paint(w, h)
 end
 
 
-----------------------------------------------------------------
+--
 vgui.Register("primitive_editor", PANEL, "DFrame")
