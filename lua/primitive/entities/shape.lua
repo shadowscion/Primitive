@@ -65,7 +65,10 @@ do
 		return shapes_vars[self:Get_primitive_shape()] or shapes_vars.generic
 	end
 
-	function PRIMITIVE:_primitive_Setup(primitive_type)
+	function PRIMITIVE:_primitive_Setup(primitive_type, initialSpawn)
+		if SERVER and initialSpawn then
+			duplicator.StoreEntityModifier(self, "mass", {Mass = 100})
+		end
 		for k, v in pairs(shapes_vars.generic) do
 			self["Set" .. k](self, shapes_vars[primitive_type][k] or v)
 		end

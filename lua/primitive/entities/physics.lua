@@ -51,7 +51,12 @@ do
 	end
 
 	----
-	function PRIMITIVE:_primitive_Setup(primitive_type)
+	function PRIMITIVE:_primitive_Setup(primitive_type, initialSpawn)
+		if SERVER and initialSpawn then
+			duplicator.StoreEntityModifier(self, "mass", {Mass = 100})
+			duplicator.StoreBoneModifier(self, 0, "physprops", {GravityToggle = true, Material = "gmod_ice"})
+		end
+
 		self:Set_primitive_tooth("wedge")
 		self:Set_primitive_flange(true)
 		self:Set_primitive_double(true)
@@ -63,9 +68,6 @@ do
 		self:Set_primitive_pdy(1)
 		self:Set_primitive_pdz(8)
 		self:Set_primitive_pdw(14)
-
-		duplicator.StoreEntityModifier(self, "mass", {Mass = 100})
-		duplicator.StoreBoneModifier(self, 0, "physprops", {GravityToggle = true, Material = "gmod_ice"})
 	end
 
 	function PRIMITIVE:_primitive_OnUpdate()

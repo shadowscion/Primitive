@@ -135,7 +135,7 @@ if SERVER then
 
 		DoPropSpawnedEffect(entity)
 
-		entity:_primitive_Setup(primitive_type)
+		entity:_primitive_Setup(primitive_type, true)
 	end
 
 	concommand.Add("primitive_spawn", primitive_spawn)
@@ -173,7 +173,7 @@ if CLIENT then
 				Categories[Category].DoClick = function(self)
 					g_primitive_spawnmenu.tree:SetSelectedItem(nil)
 					self:SetExpanded(not self:GetExpanded())
-					g_primitive_spawnmenu:swapPanel(self)
+					--g_primitive_spawnmenu:swapPanel(self)
 				end
 				Categories[Category].Label:SetFont(font)
 			end
@@ -183,12 +183,15 @@ if CLIENT then
 				Node.DoClick = function(self)
 					RunConsoleCommand("primitive_spawn", Entry)
 					surface.PlaySound("ui/buttonclickrelease.wav")
-					g_primitive_spawnmenu:swapPanel(self)
+					--g_primitive_spawnmenu:swapPanel(self)
 				end
 				Node.Label:SetFont(font)
 			end
 		end
 	end
+
+	local panel_icon
+	if file.Exists("materials/vgui/primitive/workshop_icon.png", "GAME") then panel_icon = Material("vgui/primitive/workshop_icon.png", "nocull smooth") end
 
 	hook.Add("PopulateContent", "primitive.spawnmenu", function(pnl, tree, ...)
 		if IsValid(g_primitive_spawnmenu) then
@@ -206,11 +209,20 @@ if CLIENT then
 			self:swapPanel()
 		end
 		g_primitive_spawnmenu.swapPanel = function(self, node)
-			-- pnl:SwitchPanel(self.innerPanel)
+			if self.innerPanel then pnl:SwitchPanel(self.innerPanel) end
 		end
 
-		-- g_primitive_spawnmenu.innerPanel = vgui.Create("ContentContainer", pnl)
-		-- g_primitive_spawnmenu.innerPanel:SetVisible(false)
+		if panel_icon then
+			g_primitive_spawnmenu.innerPanel = vgui.Create("DPanel", pnl)
+			g_primitive_spawnmenu.innerPanel:SetVisible(false)
+			g_primitive_spawnmenu.innerPanel.Paint = function(_, w, h)
+				surface.SetDrawColor(255, 255, 255, 75)
+				surface.SetMaterial(panel_icon)
+				surface.DrawTexturedRect(0, 0, w, h)
+				surface.SetDrawColor(0, 0, 0, 255)
+				surface.DrawOutlinedRect(0, 0, w, h, 1)
+			end
+		end
 
 		g_primitive.spawnmenu_rebuild()
 	end)

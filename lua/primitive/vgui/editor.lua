@@ -119,9 +119,15 @@ function PANEL:Init()
 					icon_cache[path] = file.Exists("materials/" .. path, "GAME") and path or "icon16/bullet_white.png"
 					icon = icon_cache[path]
 				end
-
+				combo_box.Spacers[k] = true
 				combo_box.ChoiceIcons[k] = icon
 			end
+
+			combo_box.OnSelect = function(_, id, val, data)
+				row.Inner:ValueChanged(data, true)
+				combo_box:SetImage(combo_box.ChoiceIcons[id])
+			end
+
 		elseif editdata.type == "Float" or editdata.type == "Int" then
 			local slider = row.Inner:GetChildren()[1]
 
