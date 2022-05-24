@@ -1,19 +1,19 @@
 
-
--- left
+---- left
 local color_lcol_enabled = Color(230, 240, 230)
 local color_lcol_disabled = Color(240, 230, 230)
 local color_llbl_enabled = Color(75, 75, 75)
 local color_llbl_disabled = Color(125, 115, 115)
 
--- right
+---- right
 local color_rcol_enabled = Color(235, 240, 235)
 local color_rcol_disabled = Color(240, 235, 235)
 
--- misc
+---- misc
 local color_col_strike = Color(0, 0, 0)
 local color_dframe = Color(72, 72, 75)
 
+----
 local function PaintRow(self, w, h)
 	if not IsValid(self.Inner) then return end
 
@@ -53,8 +53,7 @@ local function PaintRow(self, w, h)
 	surface.DrawRect(0, h - 1, w, 1)
 end
 
-
---
+----
 local PANEL = {}
 
 local icon_cache = {}
@@ -107,12 +106,13 @@ function PANEL:Init()
 
 		row:Setup(editdata.type, editdata)
 		row.Paint = PaintRow
+		row.Label:SetFont(shadowscion_standard_font)
 
 		if editdata.type == "Combo" and editdata.icons then
 			local combo_box = row.Inner:GetChildren()[1]
 
 			for k, v in pairs(combo_box.Choices) do
-				local path = string.format(editdata.icons, v)
+				local path = string.format(editdata.icons, string.lower(v))
 				local icon = icon_cache[path]
 
 				if not icon then
@@ -122,16 +122,45 @@ function PANEL:Init()
 
 				combo_box.ChoiceIcons[k] = icon
 			end
+		elseif editdata.type == "Float" or editdata.type == "Int" then
+			local slider = row.Inner:GetChildren()[1]
+
+			slider.OnValueChanged = function(_, newval)
+				if editdata.round then
+					newval = editdata.round * math.Round(newval / editdata.round)
+					slider:SetValue(newval)
+				end
+
+				if editdata.waitforenter and slider:IsEditing() then -- why isn't waitforenter a thing on every control
+					row.SendQueue = SysTime()
+				end
+
+				row.Inner:ValueChanged(newval)
+			end
 		end
 
 		row.DataUpdate = function(_)
 			if not IsValid(pnl.m_Entity) then pnl:EntityLost() return end
+
 			row:SetValue(pnl.m_Entity:GetNetworkKeyValue(varname))
+
 			if editdata.enabled ~= nil and editdata.enabled ~= row:IsEnabled() then row:SetEnabled(editdata.enabled) end
+
+			if row.SendQueue and SysTime() - row.SendQueue > 0.015 and row.SendValue then
+				pnl.m_Entity:EditValue(varname, row.SendValue)
+				row.SendQueue = nil
+				row.SendValue = nil
+			end
 		end
 
 		row.DataChanged = function(_, val)
 			if not IsValid(pnl.m_Entity) then pnl:EntityLost() return end
+
+			if row.SendQueue then
+				row.SendValue = tostring(val)
+				return
+			end
+
 			pnl.m_Entity:EditValue(varname, tostring(val))
 		end
 	end
@@ -143,17 +172,16 @@ function PANEL:Init()
 	self.btnClose.Paint = function(pnl, w, h)
 		derma.SkinHook("Paint", "Button", pnl, w, h)
 	end
+	self.lblTitle:SetFont(shadowscion_standard_font)
 end
 
-
---
+----
 function PANEL:SetEntity(ent)
 	self:SetTitle(tostring(ent))
 	self.PropertySheet:SetEntity(ent)
 end
 
-
---
+----
 function PANEL:PerformLayout()
 	local titlePush = 0
 	if IsValid(self.imgIcon) then
@@ -171,8 +199,7 @@ function PANEL:PerformLayout()
 	self.lblTitle:SetSize(w - 25 - titlePush, 22)
 end
 
-
---
+----
 function PANEL:Paint(w, h)
 	surface.SetDrawColor(color_dframe)
 	surface.DrawRect(0, 0, w, h)
@@ -180,6 +207,5 @@ function PANEL:Paint(w, h)
 	surface.DrawOutlinedRect(0, 0, w, h)
 end
 
-
---
+----
 vgui.Register("primitive_editor", PANEL, "DFrame")
