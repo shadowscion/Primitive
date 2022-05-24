@@ -89,6 +89,68 @@ end
 
 
 ----
+do
+	local PRIMITIVE = {}
+
+	----
+
+	PRIMITIVE._primitive_SafeValues = {
+	}
+
+	local used = {}
+	for k, v in pairs(PRIMITIVE._primitive_SafeValues) do used[k] = true end
+
+	function PRIMITIVE:_primitive_GetUsedValues()
+		return used
+	end
+
+	----
+	function PRIMITIVE:_primitive_SetupDataTables()
+		--[[
+		local category = "Transform"
+		self:_primitive_NetworkVar("Float", 0, "px", {order = 0, title = "Pos X", category = category, type = "Float", min = 0, max = 128}, true)
+		self:_primitive_NetworkVar("Float", 1, "py", {order = 1, title = "Pos Y", category = category, type = "Float", min = 0, max = 128}, true)
+		self:_primitive_NetworkVar("Float", 2, "pz", {order = 2, title = "Pos Z", category = category, type = "Float", min = 0, max = 128}, true)
+
+		local category = "Profile"
+		self:_primitive_NetworkVar("String", 0, "tooth", {order = 100, title = "Type", category = category, type = "Combo", values = table.Copy(tooth)}, true)
+
+		self:_primitive_NetworkVar("Float", 3, "pdx", {order = 101, title = "Length X", category = category, type = "Float", min = 1, max = 128}, true)
+		self:_primitive_NetworkVar("Float", 4, "pdy", {order = 102, title = "Length Y", category = category, type = "Float", min = 1, max = 8}, true)
+		self:_primitive_NetworkVar("Float", 5, "pdz", {order = 103, title = "Length Z", category = category, type = "Float", min = 1, max = 16}, true)
+		self:_primitive_NetworkVar("Float", 6, "pdw", {order = 104, title = "Gap", category = category, type = "Float", min = 0, max = 16}, true)
+		self:_primitive_NetworkVar("Bool", 3, "double", {order = 105, title = "Double", category = category, type = "Boolean"}, true)
+		self:_primitive_NetworkVar("Bool", 4, "mirror", {order = 106, title = "Mirror", category = category, type = "Boolean"}, true)
+
+		local category = "Flange"
+		self:_primitive_NetworkVar("Bool", 5, "flange", {order = 200, title = "Enable", category = category, type = "Boolean"}, true)
+		]]
+	end
+
+	----
+	function PRIMITIVE:_primitive_Setup(primitive_type)
+	end
+
+	function PRIMITIVE:_primitive_OnUpdate()
+		return g_primitive.construct_get("rail_section", self:_primitive_GetVars(nil, true), false, CLIENT)
+	end
+
+	if SERVER then
+		function PRIMITIVE:_primitive_OnEdited(key, val)
+		end
+	else
+		function PRIMITIVE:_primitive_PostUpdate()
+		end
+	end
+
+	----
+	g_primitive.entity_register("rail_section", PRIMITIVE, {Category = "physics", Entries = {"rail_section"}})
+end
+
+
+
+
+
 -- local PRIMITIVE = {}
 -- g_primitive.entity_register("airframe", PRIMITIVE, {Category = "physics", Entries = {"airframe"}})
 

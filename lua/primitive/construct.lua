@@ -278,6 +278,9 @@ do
 
 	register_simpleton("slider_cube",{Vector(-0.5,0.5,-0.5),Vector(-0.5,0.5,0.5),Vector(0.5,0.5,-0.5),Vector(0.5,0.5,0.5),Vector(-0.5,-0.5,-0.5),Vector(-0.5,-0.5,0.5),Vector(0.5,-0.5,-0.5),Vector(0.5,-0.5,0.5)},
 		{{1,5,6,2},{5,7,8,6},{7,3,4,8},{3,1,2,4},{4,2,6,8},{1,3,7,5}})
+
+	register_simpleton("cube",{Vector(-0.5,0.5,-0.5),Vector(-0.5,0.5,0.5),Vector(0.5,0.5,-0.5),Vector(0.5,0.5,0.5),Vector(-0.5,-0.5,-0.5),Vector(-0.5,-0.5,0.5),Vector(0.5,-0.5,-0.5),Vector(0.5,-0.5,0.5)},
+		{{1,5,6,2},{5,7,8,6},{7,3,4,8},{3,1,2,4},{4,2,6,8},{1,3,7,5}})
 end
 
 --[[
@@ -296,6 +299,54 @@ addon.construct_register(, function(args, nophys, triangulate)
 end)
 ]]
 
+--[[
+56 Source units
+Inner rail to inner rail
+The rail heads are 4 units
+
+4 wide
+8 units tall
+But the flange is usually only and inch or two wide
+]]
+
+
+addon.construct_register("rail_section", function(args, nophys, triangulate)
+	--[[
+	local vertex, index, physics
+
+	vertex = {}
+
+	if triangulate then
+		index = {}
+	end
+
+	local width = 56
+	local length = 128*50
+	local depth = 4
+	local height = 8
+
+	physics = {}
+
+	insert_simpleton(vertex, index, physics, nil, construct_simpleton("cube", Vector(0, width*0.5 + depth*0.5, 0), nil, Vector(length, depth, height), index and #vertex))
+	insert_simpleton(vertex, index, physics, nil, construct_simpleton("cube", Vector(0, -width*0.5 - depth*0.5, 0), nil, Vector(length, depth, height), index and #vertex))
+
+	local gap = 14
+	local beam = width + 16
+	local num = math.floor(length / gap)
+
+	for i = 0, num, 2 do
+
+		insert_simpleton(vertex, index, nil, nil, construct_simpleton("cube", Vector(gap*i - length*0.5 + gap*0.5 + (length % gap)*0.5, 0, -height*0.5 - 2), nil, Vector(gap, beam, 4), index and #vertex))
+
+	end
+
+	if not nophys then
+		--physics = {vertex}
+	end
+
+	return {vertex = vertex, index = index, physics = physics}
+	]]
+end)
 
 ----
 do
@@ -310,7 +361,7 @@ do
 		local dx = args.pdx or 24
 		local dy = args.pdy or 1
 		local dz = args.pdz or 8
-		local dw = args.pd or 14
+		local dw = args.pdw or 14
 
 		local flange = args.flange
 		local double = args.double
