@@ -146,17 +146,5 @@ do
 	end
 
 	----
-	g_primitive.entity_register("rail_section", PRIMITIVE, {Category = "physics", Entries = {"rail_section"}})
+	g_primitive.entity_register("rail_section", PRIMITIVE, {Category = "physics", Entries = {"rail_section (experimental)"}})
 end
-
-
-
-
-
--- local PRIMITIVE = {}
--- g_primitive.entity_register("airframe", PRIMITIVE, {Category = "physics", Entries = {"airframe"}})
-
-
-----
--- local PRIMITIVE = {}
--- g_primitive.entity_register("airfoil", PRIMITIVE, {Category = "miscellaneous", Entries = {"airfoil"}})

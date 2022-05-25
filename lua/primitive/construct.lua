@@ -193,6 +193,8 @@ do
 				pcall(isfunction(triangulate) and triangulate or construct_triangulate, ret)
 			end
 
+			if nophys then ret.physics = nil end
+
 			return ret
 		end
 		return construct_error(string.format("(%s) (non-existing constructor function)", name), nil, triangulate)
@@ -298,6 +300,7 @@ addon.construct_register(, function(args, nophys, triangulate)
 	return {vertex = vertex, index = index, physics = {physics}}
 end)
 ]]
+
 
 --[[
 56 Source units

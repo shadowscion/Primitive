@@ -36,9 +36,9 @@ do
 
 	----
 	PRIMITIVE._primitive_SafeValues = {
-		_primitive_dx = function(self, val) return math.Clamp(val, 0, 1024) end,
-		_primitive_dy = function(self, val) return math.Clamp(val, 0, 1024) end,
-		_primitive_dz = function(self, val) return math.Clamp(val, 0, 1024) end,
+		_primitive_dx = function(self, val) return math.Clamp(val, 1, 1024) end,
+		_primitive_dy = function(self, val) return math.Clamp(val, 1, 1024) end,
+		_primitive_dz = function(self, val) return math.Clamp(val, 1, 1024) end,
 		_primitive_dt = function(self, val) return math.Clamp(val, 1, 1024) end,
 		_primitive_tx = function(self, val) return math.Clamp(val, -1, 1) end,
 		_primitive_ty = function(self, val) return math.Clamp(val, -1, 1) end,

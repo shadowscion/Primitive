@@ -17,7 +17,7 @@ g_primitive.entity_register = function(name, primitive, menuList)
 	if istable(menuList) and menuList.Category and #menuList.Category > 0 then
 		if not g_primitive.menu[menuList.Category] then g_primitive.menu[menuList.Category] = { Entries = {}, Order = menuList.Order } end
 		for k, v in pairs(menuList.Entries) do
-			g_primitive.menu[menuList.Category].Entries[v] = true
+			if not menuList.Hide then g_primitive.menu[menuList.Category].Entries[v] = true end
 			g_primitive.class_lookup[v] = primitive.ClassName
 		end
 	end
