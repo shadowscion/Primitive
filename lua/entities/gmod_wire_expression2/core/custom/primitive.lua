@@ -52,12 +52,9 @@ e2function number primitiveEdit(entity ent, string key, ...)
 end
 
 local e2type = {string = "s", number = "n", boolean = "n"}
-local luatype = {string = "string", number = "n", boolean = "n"}
 e2function table primitiveGetVars(entity ent)
 	local ret = E2Lib.newE2Table()
 	if not check(self, ent) or not ent._primitive_GetVars then return ret end
-
-	local editingData = ent:GetEditingData()
 
 	for k, v in pairs(ent:_primitive_GetVars()) do
 		local lt = type(v)
