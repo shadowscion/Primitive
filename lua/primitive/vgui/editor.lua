@@ -12,6 +12,7 @@ local color_rcol_disabled = Color(240, 235, 235)
 ---- misc
 local color_col_strike = Color(0, 0, 0)
 local color_dframe = Color(72, 72, 75)
+local color_text_entry = Color(72, 72, 75, 50)
 
 ----
 local function PaintRow(self, w, h)
@@ -215,3 +216,94 @@ end
 
 ----
 vgui.Register("primitive_editor", PANEL, "DFrame")
+
+----
+do
+	local function PaintEntry(self, w, h)
+		surface.SetDrawColor(color_text_entry)
+		surface.DrawRect(0, 0, w, h)
+		self:DrawTextEntryText(self:GetTextColor(), self:GetHighlightColor(), self:GetCursorColor())
+	end
+
+	local PANEL = {}
+
+	function PANEL:Init()
+	end
+
+	function PANEL:Setup(vars)
+		self:Clear()
+
+		vars = vars or {}
+
+		local wfe = not vars.waitforenter
+
+		local x = self:Add("DTextEntry")
+		x:SetNumeric(true)
+		if not wfe then x:SetUpdateOnType(true) end
+
+		local y = self:Add("DTextEntry")
+		y:SetNumeric(true)
+		if not wfe then y:SetUpdateOnType(true) end
+
+		local z = self:Add("DTextEntry")
+		z:SetNumeric(true)
+		if not wfe then z:SetUpdateOnType(true) end
+
+		local min = vars.min or 0
+		local max = vars.max or 1
+
+		x.OnValueChange = function(entry, val)
+			val = tonumber(val)
+			if val < min then val = min elseif val > max then val = max end
+			self:ValueChanged(string.format("%s %s %s", val, y:GetText(), z:GetText()))
+		end
+		y.OnValueChange = function(entry, val)
+			val = tonumber(val)
+			if val < min then val = min elseif val > max then val = max end
+			self:ValueChanged(string.format("%s %s %s", x:GetText(), val, z:GetText()))
+		end
+		z.OnValueChange = function(entry, val)
+			val = tonumber(val)
+			if val < min then val = min elseif val > max then val = max end
+			self:ValueChanged(string.format("%s %s %s", x:GetText(), y:GetText(), val))
+		end
+
+		x.Paint = PaintEntry
+		y.Paint = PaintEntry
+		z.Paint = PaintEntry
+
+		self.PerformLayout = function(_, w, h)
+			local w = w / 3 - 2
+
+			x:SetPos(0, 1)
+			y:SetPos(w + 1, 1)
+			z:SetPos(w + w + 2, 1)
+
+			x:SetSize(w, h - 3)
+			y:SetSize(w, h - 3)
+			z:SetSize(w, h - 3)
+		end
+
+		self.IsEditing = function( self )
+			return x:IsEditing() or y:IsEditing() or z:IsEditing()
+		end
+
+		self.IsEnabled = function( self )
+			return x:IsEnabled()
+		end
+
+		self.SetEnabled = function( self, b )
+			x:SetEnabled(b)
+			y:SetEnabled(b)
+			z:SetEnabled(b)
+		end
+
+		self.SetValue = function( self, val )
+			x:SetText(string.format("%.2f", val.x))
+			y:SetText(string.format("%.2f", val.y))
+			z:SetText(string.format("%.2f", val.z))
+		end
+	end
+
+	derma.DefineControl( "DProperty_PrimVec", "", PANEL, "DProperty_Generic" )
+end

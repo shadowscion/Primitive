@@ -108,3 +108,87 @@ do
 	----
 	g_primitive.entity_register("shape", PRIMITIVE, {Category = "shape", Entries = shapes_list})
 end
+
+
+
+/*
+do
+	local PRIMITIVE = {}
+
+	----
+	local default = {
+		_primitive_imodel = "models/hunter/blocks/cube025x025x025.mdl",
+		_primitive_iscale = Vector(1, 1, 1),
+		_primitive_iangle = Vector(0, 0, 0),
+		_primitive_cx = 1,
+		_primitive_cy = 1,
+		_primitive_gx = 1,
+		_primitive_gy = 1,
+	}
+
+	PRIMITIVE._primitive_SafeValues = {
+		_primitive_imodel = function(self, val)
+			return IsUselessModel(val) and default._primitive_model or val
+		end,
+		_primitive_iscale = function(self, val)
+			if not isvector then return Vector(default._primitive_iscale) end
+			return Vector(math.Clamp(val.x, 0.01, 50), math.Clamp(val.y, 0.01, 50), math.Clamp(val.z, 0.01, 50))
+		end,
+		_primitive_iangle = function(self, val)
+			if not isvector then return Vector(default._primitive_iangle) end
+			return Vector(math.Clamp(val.x, -180, 180), math.Clamp(val.y, -180, 180), math.Clamp(val.z, -180, 180))
+		end,
+
+		_primitive_cx = function(self, val) return math.Clamp(math.floor(val), 1, 16) end,
+		_primitive_cy = function(self, val) return math.Clamp(math.floor(val), 1, 16) end,
+		_primitive_gx = function(self, val) return math.Clamp(val, 0, 1) end,
+		_primitive_gy = function(self, val) return math.Clamp(val, 0, 1) end,
+	}
+
+	local used = {}
+	for k, v in pairs(PRIMITIVE._primitive_SafeValues) do used[k] = true end
+
+	function PRIMITIVE:_primitive_GetUsedValues()
+		return used
+	end
+
+	function PRIMITIVE:_primitive_Setup(primitive_type)
+		if SERVER and initialSpawn then
+			duplicator.StoreEntityModifier(self, "mass", {Mass = 100})
+		end
+		for k, v in pairs(default) do
+			self["Set" .. k](self, v)
+		end
+	end
+
+	----
+	function PRIMITIVE:_primitive_SetupDataTables()
+		local category = "Instance"
+		self:_primitive_NetworkVar("String", 0, "imodel", {order = 100, category = category, title = "Model", type = "Generic"}, true)
+		self:_primitive_NetworkVar("Vector", 0, "iscale", {order = 101, category = category, title = "Scale", type = "PrimVec", min = 0.01, max = 50}, true)
+		self:_primitive_NetworkVar("Vector", 1, "iangle", {order = 102, category = category, title = "Angle", type = "PrimVec", min = -180, max = 180}, true)
+
+		local category = "Modify"
+		self:_primitive_NetworkVar("Int", 0, "cx", {order = 200, category = category, title = "Count X", type = "Int", min = 1, max = 16}, true)
+		self:_primitive_NetworkVar("Int", 1, "cy", {order = 201, category = category, title = "Count Y", type = "Int", min = 1, max = 16}, true)
+		self:_primitive_NetworkVar("Float", 6, "gx", {order = 202, category = category, title = "Gap X", type = "Float", min = -1024, max = 1024}, true)
+		self:_primitive_NetworkVar("Float", 7, "gy", {order = 203, category = category, title = "Gap Y", type = "Float", min = -1024, max = 1024}, true)
+	end
+
+	----
+	function PRIMITIVE:_primitive_OnUpdate()
+		return g_primitive.construct_get("array", self:_primitive_GetVars(nil, true), false, CLIENT)
+	end
+
+	if SERVER then
+		function PRIMITIVE:_primitive_OnEdited(key, val)
+		end
+	else
+		function PRIMITIVE:_primitive_PostUpdate()
+		end
+	end
+
+	----
+	g_primitive.entity_register("array", PRIMITIVE, {Category = "shape", Entries = {"array (experimental)"}})
+end
+*/

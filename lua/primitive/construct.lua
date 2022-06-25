@@ -21,7 +21,7 @@ local dot = vec.Dot
 local cross = vec.Cross
 local rotate = vec.Rotate
 
-local construct_simpleton, insert_simpleton
+local construct_simpleton, insert_simpleton, register_simpleton
 
 local function map(x, in_min, in_max, out_min, out_max)
     return (x - in_min)*(out_max - out_min)/(in_max - in_min) + out_min
@@ -210,8 +210,9 @@ do
 	----
 	local simpletons = {}
 
-	local function register_simpleton(name, vertex, index)
+	function register_simpleton(name, vertex, index)
 		simpletons[name] = {vertex = vertex, index = index}
+		return simpletons[name]
 	end
 
 	function construct_simpleton(name, pos, ang, scale, offsetT)
@@ -284,6 +285,8 @@ do
 	register_simpleton("cube",{Vector(-0.5,0.5,-0.5),Vector(-0.5,0.5,0.5),Vector(0.5,0.5,-0.5),Vector(0.5,0.5,0.5),Vector(-0.5,-0.5,-0.5),Vector(-0.5,-0.5,0.5),Vector(0.5,-0.5,-0.5),Vector(0.5,-0.5,0.5)},
 		{{1,5,6,2},{5,7,8,6},{7,3,4,8},{3,1,2,4},{4,2,6,8},{1,3,7,5}})
 end
+
+
 
 --[[
 addon.construct_register(, function(args, nophys, triangulate)
@@ -1292,3 +1295,68 @@ addon.construct_register("wedge_corner", function(args, nophys, triangulate)
 
 	return {vertex = vertex, index = index, physics = {physics}}
 end)
+
+
+--[[
+local modelmeshlookup = {}
+addon.construct_register("array", function(args, nophys, triangulate)
+	local vertex, index, physics
+
+	if CLIENT then
+		local modelmesh = modelmeshlookup[args.imodel]
+		if not modelmesh then
+			local meshes = util.GetModelMeshes(args.imodel)
+			if meshes and meshes[1] then
+				local tt = meshes[1].triangles
+
+				local vt = {}
+				local it = {}
+
+				for i = 1, #tt, 3 do
+					vt[#vt + 1] = tt[i].pos
+					vt[#vt + 1] = tt[i + 1].pos
+					vt[#vt + 1] = tt[i + 2].pos
+
+					it[#it + 1] = { i, i + 2, i + 1 }
+				end
+
+				modelmeshlookup[args.imodel] = register_simpleton(args.imodel, vt, it)
+				modelmesh = modelmeshlookup[args.imodel]
+			end
+		end
+		if modelmesh then
+			vertex = {}
+			index = {}
+
+			local scale = args.iscale or Vector(1,1,1)
+			local angle = args.iangle or Vector()
+
+			angle = Angle(angle.x, angle.y, angle.z)
+			angle:Normalize()
+
+			local sx = scale.x
+			local sy = scale.y
+			local sz = scale.z
+
+			local cx = args.cx or 1
+			local cy = args.cy or 1
+
+			local gx = args.gx or 1
+			local gy = args.gy or 1
+
+			local count = #modelmesh.vertex
+
+			for x = 0, cx - 1 do
+				for y = 0, cy - 1 do
+					if #vertex + count > 64000 then break end
+					insert_simpleton(vertex, index, nil, nil, construct_simpleton(args.imodel, Vector(x*(sx + gx), y*(sy + gy), 0), angle, Vector(sx, sy, sz), index and #vertex))
+				end
+			end
+		end
+	else
+		vertex = {}
+	end
+
+	return {vertex = vertex, index = index, physics = physics}
+end)
+]]
