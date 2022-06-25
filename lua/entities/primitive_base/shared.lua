@@ -127,6 +127,38 @@ function ENT:_primitive_Update()
 end
 
 ---
+function ENT:primitive_RestoreConstraints(constraints)
+	if constraints and next(constraints) then
+		timer.Simple(0, function()
+			if not self:GetPhysicsObject():IsValid() then return end
+			for _, constr in pairs(constraints) do
+				local factory = duplicator.ConstraintType[constr.Type]
+				if not factory then
+					break
+				end
+				local args = {}
+				for i = 1, #factory.Args do
+					args[ i ] = constr[factory.Args[i]]
+				end
+				factory.Func(unpack(args))
+			end
+		end)
+	end
+end
+
+function ENT:primitive_RestorePhysics(mass, physprops)
+	local physicsObject = self:GetPhysicsObject()
+
+	if mass then physicsObject:SetMass(mass) end
+	if physprops then
+		if physprops.Gravity ~= nil then physicsObject:EnableGravity(physprops.Gravity) end
+		if physprops.Material ~= nil then physicsObject:SetMaterial(physprops.Material) end
+	end
+
+	physicsObject:EnableMotion(false)
+	physicsObject:Sleep()
+end
+
 function ENT:_primitive_UpdatePhysics(primitive)
 	local constraints, mass, physprops
 	if SERVER then
@@ -163,34 +195,9 @@ function ENT:_primitive_UpdatePhysics(primitive)
 	self:SetSolid(SOLID_VPHYSICS)
 
 	if SERVER then
-		local physicsObject = self:GetPhysicsObject()
-
-		if mass then physicsObject:SetMass(mass) end
-		if physprops then
-			if physprops.Gravity ~= nil then physicsObject:EnableGravity(physprops.Gravity) end
-			if physprops.Material ~= nil then physicsObject:SetMaterial(physprops.Material) end
+		if hook.Run("primitive.updatePhysics", self, constraints, mass, physprops) ~= false then
+			self:primitive_RestorePhysics(mass, physprops)
+			self:primitive_RestoreConstraints(constraints)
 		end
-
-		physicsObject:EnableMotion(false)
-		physicsObject:Sleep()
-
-		if constraints and next(constraints) then
-			timer.Simple(0, function()
-				if not self:GetPhysicsObject():IsValid() then return end
-				for _, constr in pairs(constraints) do
-					local factory = duplicator.ConstraintType[constr.Type]
-					if not factory then
-						break
-					end
-					local args = {}
-					for i = 1, #factory.Args do
-						args[ i ] = constr[factory.Args[i]]
-					end
-					factory.Func(unpack(args))
-				end
-			end)
-		end
-
-		hook.Run("primitive.updatePhysics", self, constraints, mass, physprops)
 	end
 end
