@@ -65,7 +65,7 @@ local function DrawError(self)
 
 	cam.Start2D()
 	local pos = (self:GetPos() + Vector(0, 0, 6)):ToScreen()
-	draw.DrawText("Error constructing primitive.\nCheck console for details!", shadowscion_standard_font or "Default", pos.x, pos.y, dbg_text, TEXT_ALIGN_CENTER)
+	draw.DrawText("Error constructing primitive.\nCheck console for details!", "DermaDefaultBold", pos.x, pos.y, dbg_text, TEXT_ALIGN_CENTER)
 	cam.End2D()
 end
 
@@ -91,7 +91,7 @@ local function DrawDebug(self)
 
 	if self:Get_primitive_debug_vertex() and self._primitive_RenderVertex then
 		cam.Start2D()
-		surface.SetFont(shadowscion_standard_font or "Default")
+		surface.SetFont("DermaDefault")
 		surface.SetTextColor(dbg_vertex)
 		surface.SetDrawColor(dbg_vertex)
 

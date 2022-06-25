@@ -143,7 +143,7 @@ end
 
 ----
 if CLIENT then
-	local font = shadowscion_standard_font
+	local font = "DermaDefault"
 
 	local function upper(str)
 	    return (str:gsub("^%l", string.upper))

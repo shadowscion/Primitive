@@ -106,7 +106,7 @@ function PANEL:Init()
 
 		row:Setup(editdata.type, editdata)
 		row.Paint = PaintRow
-		row.Label:SetFont(shadowscion_standard_font)
+		row.Label:SetFont("DermaDefault")
 
 		if editdata.type == "Combo" and editdata.icons then
 			local combo_box = row.Inner:GetChildren()[1]
@@ -178,7 +178,7 @@ function PANEL:Init()
 	self.btnClose.Paint = function(pnl, w, h)
 		derma.SkinHook("Paint", "Button", pnl, w, h)
 	end
-	self.lblTitle:SetFont(shadowscion_standard_font)
+	self.lblTitle:SetFont("DermaDefault")
 end
 
 ----

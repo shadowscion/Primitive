@@ -12,11 +12,6 @@ if SERVER then
 	include("primitive/construct.lua")
 	include("primitive/entity.lua")
 else
-	if not shadowscion_standard_font then
-		shadowscion_standard_font = "shadowscion_standard_font"
-		surface.CreateFont(shadowscion_standard_font, {size = 13, weight = 800, font = "Tahoma"})
-	end
-
 	include("primitive/construct.lua")
 	include("primitive/vgui/editor.lua")
 	include("primitive/entity.lua")
