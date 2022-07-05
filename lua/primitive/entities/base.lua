@@ -635,7 +635,7 @@ if CLIENT then
         self.primitive.result = result
 
         if istable( result ) and istable( result.tris ) and #result.tris > 3 then
-            self.primitive.renderMesh = { Mesh = Mesh(), Material = baseMaterial }
+            self.primitive.renderMesh = { Mesh = Mesh(), Material = self.baseMaterial or baseMaterial }
             self.primitive.renderMesh.Mesh:BuildFromTriangles( result.tris )
 
             if result.error then

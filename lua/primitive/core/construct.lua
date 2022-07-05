@@ -474,7 +474,7 @@ end
 
 --[[
     NOTE: Although this function can be called with a valid but unregistered construct, that should only be done
-    for convenience while developing. Not registering the construct menas other addons ( like prop2mesh )
+    for convenience while developing. Not registering the construct means other addons ( like prop2mesh )
     will not have quick access to it.
 ]]
 
@@ -587,7 +587,7 @@ do
 
     local function register( name, pverts, pfaces )
         types[name] = { name = name, verts = pverts, faces = pfaces, copy = copy, insert = insert }
-        return types[name]
+        return types[name] or types.cube
     end
 
     Addon.construct.simpleton = {
@@ -618,7 +618,8 @@ do
         { 1, 3, 7, 5 }
     } )
 
-    /*
+    types.slider_cube = types.cube
+
     register( "slider_wedge",
     {
         Vector( -0.5, -0.5, 0.5 ),
@@ -668,36 +669,49 @@ do
         { 7, 9, 2, 8 },
     } )
 
-    register( "slider_cube",
+    register( "slider_blade",
     {
-        Vector( -0.5, 0.5, -0.5 ),
-        Vector( -0.5, 0.5, 0.5 ),
-        Vector( 0.5, 0.5, -0.5 ),
         Vector( 0.5, 0.5, 0.5 ),
-        Vector( -0.5, -0.5, -0.5 ),
-        Vector( -0.5, -0.5, 0.5 ),
-        Vector( 0.5, -0.5, -0.5 ),
         Vector( 0.5, -0.5, 0.5 ),
+        Vector( 0.5, -0.25, 0.153185 ),
+        Vector( 0.433013, -0.5, 0.173407 ),
+        Vector( 0.433013, 0.5, 0.173407 ),
+        Vector( 0.433013, -0.25, -0.173407 ),
+        Vector( 0.25, -0.25, -0.412490 ),
+        Vector( 0.25, -0.5, -0.065675 ),
+        Vector( 0.25, 0.5, -0.065675 ),
+        Vector( 0, -0.25, -0.5 ),
+        Vector( 0, -0.5, -0.153185 ),
+        Vector( -0, 0.5, -0.153185 ),
+        Vector( -0.25, -0.25, -0.412490 ),
+        Vector( -0.25, -0.5, -0.065675 ),
+        Vector( -0.25, 0.5, -0.065675 ),
+        Vector( -0.433013, -0.25, -0.173407 ),
+        Vector( -0.433013, -0.5, 0.173407 ),
+        Vector( -0.433013, 0.5, 0.173407 ),
+        Vector( -0.5, -0.5, 0.5 ),
+        Vector( -0.5, 0.5, 0.5 ),
+        Vector( -0.5, -0.25, 0.153186 ),
     },
     {
-        { 1, 5, 6, 2 },
-        { 5, 7, 8, 6 },
-        { 7, 3, 4, 8 },
-        { 3, 1, 2, 4 },
-        { 4, 2, 6, 8 },
-        { 1, 3, 7, 5 },
-    } )
-    */
-
-    /*
-    local test = simpleton( "cube" )
-    local verts = {}
-    local faces = {}
-    local hulls = {}
-
-    test:insert( verts, faces, hulls, Vector( 50, 0, 0 ), nil, nil )
-    test:insert( verts, faces, hulls, Vector( 50, 0, 0 ), nil, nil )
-    */
+        { 1, 2, 3 },
+        { 2, 4, 6, 3 },
+        { 3, 6, 5, 1 },
+        { 4, 8, 7, 6 },
+        { 6, 7, 9, 5 },
+        { 11, 10, 7, 8 },
+        { 9, 7, 10, 12 },
+        { 14, 13, 10, 11 },
+        { 12, 10, 13, 15 },
+        { 17, 16, 13, 14 },
+        { 15, 13, 16, 18 },
+        { 21, 16, 17, 19 },
+        { 20, 18, 16, 21 },
+        { 20, 21, 19 },
+        { 19, 17, 14, 11, 8, 4, 2 },
+        { 1, 5, 9, 12, 15, 18, 20 },
+        { 2, 1, 20, 19 },
+     } )
 
 end
 
@@ -710,44 +724,114 @@ end
 
 ]]
 
-/*
 registerType( "rail_slider", function( param, data, thread, physics )
-
     local verts, faces, convexes = {}
 
     if CLIENT then faces = {} end
     if physics then convexes = {} end
 
+
     -- base
-    local bpos = isvector( param.PrimBPOS ) and param.PrimBPOS or Vector( 1, 1, 1 )
-    local bdim = isvector( param.PrimBDIM ) and param.PrimBDIM or Vector( 1, 1, 1 )
+    local bpos = isvector( param.PrimBPOS ) and Vector( param.PrimBPOS ) or Vector( 1, 1, 1 )
+    local bdim = isvector( param.PrimBDIM ) and Vector( param.PrimBDIM ) or Vector( 1, 1, 1 )
 
-    local bpx = bpos.x
-    local bpy = bpos.y
-    local bpz = bpos.z
+    bpos.z = bpos.z + bdim.z * 0.5
 
-    local bdx = bdim.x
-    local bdy = bdim.y
-    local bdz = bdim.z
 
     -- contact point
-    local cpx = param.PrimCPX or 1
-    local cpy = param.PrimCPY or 1
-    local cdx = param.PrimCDX or 1
-    local cdy = param.PrimCDY or 1
-    local cdz = param.PrimCDZ or 1
+    local cpos = isvector( param.PrimCPOS ) and Vector( param.PrimCPOS ) or Vector( 1, 1, 1 )
+    local crot = isangle( param.PrimCROT ) and Angle( param.PrimCROT ) or Angle()
+    local cdim = isvector( param.PrimCDIM ) and Vector( param.PrimCDIM ) or Vector( 1, 1, 1 )
 
-    local cube = simpleton( "cube" )
+    cpos.y = cpos.y + cdim.y * 0.5
+    cpos.z = cpos.z + cdim.z * 0.5
+
 
     -- base
-    cube:insert( verts, faces, convexes, Vector( bpx, bpy, bpz ), nil, Vector( bdx, bdy, bdz ) )
+    if tobool( param.PrimBASE ) then
+        local cube = simpleton( "cube" )
+        cube:insert( verts, faces, convexes, bpos, nil, bdim )
+    end
 
-    transform( verts, param.PrimMESHROT, param.PrimMESHPOS, thread )
+
+    -- contact point
+    local ctype = simpleton( tostring( param.PrimCTYPE ) )
+    local cbits = math.floor( tonumber( param.PrimCENUMS ) or 0 )
+
+    local cgap = tonumber( param.PrimCGAP ) or 0
+    cgap = cgap + cdim.y
+
+    local flip = {
+        Vector( 1, 1, 1 ), -- front left
+        Vector( 1, -1, 1 ), -- front right
+        Vector( -1, 1, 1 ), -- rear left
+        Vector( -1, -1, 1 ), -- rear right
+    }
+
+    local ENUM_CDOUBLE = 16
+    local double = bit.band( cbits, ENUM_CDOUBLE ) == ENUM_CDOUBLE
+
+
+    -- flange
+    local fbits, getflange = math.floor( tonumber( param.PrimFENUMS ) or 0 )
+
+    local ENUM_FENABLE = 1
+    if bit.band( fbits, ENUM_FENABLE ) == ENUM_FENABLE then
+        local fdim
+        if double then
+            fdim = Vector( cdim.x, cgap - cdim.y, cdim.z * 0.25 )
+        else
+            fdim = Vector( cdim.x, tonumber( param.PrimFGAP ) or 1, cdim.z * 0.25 )
+        end
+
+        if fdim.y > 0 then
+            local ftype = simpleton( tostring( param.PrimFTYPE ) )
+
+            function getflange( i, pos, rot, side )
+                local s = bit.lshift( 1, i - 1 )
+
+                if bit.band( fbits, s ) == s then
+                    local pos = Vector( pos )
+
+                    pos = pos - ( rot:Right() * ( fdim.y * 0.5 + cdim.y * 0.5 ) * side.y )
+                    pos = pos + ( rot:Up() * ( cdim.z * 0.5 - fdim.z * 0.5 ) )
+
+                    ftype:insert( verts, faces, convexes, pos, rot, fdim )
+                end
+            end
+        end
+    end
+
+
+    -- builder
+    for i = 1, 4 do
+        local side = bit.lshift( 1, i - 1 )
+
+        if bit.band( cbits, side ) == side then
+            side = flip[i]
+
+            local pos = cpos * side
+            local rot = Angle( -crot.p * side.x, crot.y * side.x * side.y, crot.r * side.y )
+
+            pos.x = pos.x + ( cdim.x * side.x * 0.5 )
+
+            ctype:insert( verts, faces, convexes, pos, rot, cdim )
+
+            if getflange then getflange( i, pos, rot, side ) end
+
+            if double then
+                pos = pos - ( rot:Right() * side.y * cgap )
+                ctype:insert( verts, faces, convexes, pos, rot, cdim )
+            end
+        end
+    end
+
+    Primitive.construct.util.transform( verts, param.PrimMESHROT, param.PrimMESHPOS, thread )
 
     return { verts = verts, faces = faces, convexes = convexes }
-
 end )
-*/
+
+
 
 --[[
 
