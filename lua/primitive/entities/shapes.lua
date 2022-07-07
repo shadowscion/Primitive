@@ -120,7 +120,7 @@ do
 end
 
 
-function class:PrimitiveSetup( initial, args )
+function class:PrimitiveOnSetup( initial, args )
     if initial and SERVER then
         duplicator.StoreEntityModifier( self, "mass", { Mass = 100 } )
     end
@@ -129,8 +129,6 @@ function class:PrimitiveSetup( initial, args )
 
     if defaults[type] then
         self:SetPrimTYPE( type )
-        self:SetPrimMESHENUMS( 1 )
-
         if tobool( physics ) then self:SetPrimMESHPHYS( tobool( physics ) ) end
         if tonumber( uv ) then self:SetPrimMESHUV( tonumber( uv ) ) end
     end

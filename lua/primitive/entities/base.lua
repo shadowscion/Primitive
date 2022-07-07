@@ -50,7 +50,7 @@ function class:PrimitiveGetConstruct()
 end
 
 
-function class:PrimitiveSetup( initial, args )
+function class:PrimitiveOnSetup( initial, args )
 end
 
 
@@ -70,6 +70,16 @@ function class:CanTool( ply, trace, mode, tool, button )
     return true
 end
 
+
+function class:PrimitiveSetup( initial, args )
+
+    self:SetPrimMESHENUMS( bit.bor( 1, 1 ) )
+    self:SetPrimMESHUV( 48 )
+    self:SetPrimMESHPHYS( true )
+
+    self:PrimitiveOnSetup( initial, args )
+
+end
 
 function class:SetupDataTables()
     self.primitive = { keys = {}, vdt = { index = {}, order = 0 }, init = SysTime() }
@@ -221,15 +231,18 @@ function class:PrimitiveRebuildPhysics( result )
     else
         self.m_bCustomCollisions = nil
 
-        -- using VPHYSICS, only initialize on server
+        local b = bit.bor( FSOLID_CUSTOMRAYTEST, FSOLID_CUSTOMBOXTEST )
+        if bit.band( self:GetSolidFlags(), b ) == b then
+            -- using VPHYSICS, only initialize on server
 
-        self:EnableCustomCollisions( false )
-        self:PhysicsDestroy()
+            self:EnableCustomCollisions( false )
+            self:PhysicsDestroy()
 
-        if SERVER then
-            self:PhysicsInit( SOLID_VPHYSICS )
-            self:SetMoveType( MOVETYPE_VPHYSICS )
-            self:SetSolid( SOLID_VPHYSICS )
+            if SERVER then
+                self:PhysicsInit( SOLID_VPHYSICS )
+                self:SetMoveType( MOVETYPE_VPHYSICS )
+                self:SetSolid( SOLID_VPHYSICS )
+            end
         end
     end
 
@@ -278,7 +291,8 @@ function class:PrimitiveReconstruct()
         return
     end
 
-    self.primitive.thread = result
+    self:PrimitiveSetThread( result )
+    --self.primitive.thread = result
 end
 
 
@@ -288,7 +302,7 @@ local threadTime = GetConVar( "primitive_thread_runtime" )
 local function resume( self )
     local t = SysTime()
 
-    while SysTime() - t < threadTime:GetFloat() do
+    while SysTime() - t < 0.0015 do --threadTime:GetFloat() do
         local success, err, result = coroutine.resume( self.primitive.thread )
 
         if not success or ( err and not result ) then
@@ -296,18 +310,65 @@ local function resume( self )
             print( success, err, result )
 
             self.primitive.thread = nil
-            break
+            return true
         end
 
         if err and result then
             constructFromTable( self, result )
 
             self.primitive.thread = nil
-            break
+            return true
         end
     end
+
+    return false
 end
 
+local queue, overlay
+
+if CLIENT then
+
+    hook.Add( "HUDPaint", "Primitive_Async_Overlay", function()
+        if overlay then
+            local pos = overlay:GetPos():ToScreen()
+            draw.SimpleText( "Generating primitive...", "DermaDefault", pos.x, pos.y, color_white )
+        end
+    end )
+
+end
+
+hook.Add( "Think", "Primitive_Async_Generation", function()
+    if not queue then
+        return
+    end
+
+    if next( queue ) == nil then
+        queue = nil
+        return
+    end
+
+    local ent = next( queue )
+    overlay = ent
+
+    if not IsValid( ent ) or not istable( ent.primitive ) or type( ent.primitive.thread ) ~= "thread" then
+        queue[ent] = nil
+        overlay = nil
+
+        return
+    end
+
+    if resume( ent ) then
+        queue[ent] = nil
+        overlay = nil
+    end
+end )
+
+function class:PrimitiveSetThread( result )
+    self.primitive.thread = result
+
+    if not queue then queue = {} end
+    queue[self] = true
+end
 
 function class:Think()
     if self.primitive.init then
@@ -315,10 +376,6 @@ function class:Think()
             self:PrimitiveReconstruct()
             self.primitive.init = nil
         end
-    end
-
-    if self.primitive.thread then
-        resume( self )
     end
 
     if CLIENT and self.m_bCustomCollisions then
@@ -492,6 +549,9 @@ end
 
 if CLIENT then
 
+    function class:OnDrawDebug()
+    end
+
     function class:GetRenderMesh()
         return self.primitive.renderMesh
     end
@@ -552,15 +612,17 @@ if CLIENT then
         if self.debugConvex and self.primitive.physmesh and self.primitive.physmesh:IsValid() then
             cam.PushModelMatrix( self:GetWorldTransformMatrix() )
 
+            render.SetColorModulation( 1, 0, 1 )
             render.SetMaterial( ___physics )
             self.primitive.physmesh:Draw()
+            render.SetColorModulation( 1, 1, 1 )
 
             cam.PopModelMatrix()
-        else
-
         end
 
-        self:DrawModel()
+        if self.primitive.renderMesh then
+            self:DrawModel()
+        end
 
         local pos = self:GetPos()
         local ang = self:GetAngles()
@@ -594,6 +656,8 @@ if CLIENT then
 
             cam.End2D()
         end
+
+        self:OnDrawDebug()
     end
 
 
@@ -643,11 +707,13 @@ if CLIENT then
             else
                 self:SetDrawFunction()
             end
+
+            renderBounds( self, result )
         else
             Primitive.funcs.log( self, "invalid mesh" )
-        end
 
-        renderBounds( self, result )
+            self:SetDrawFunction()
+        end
     end
 
 

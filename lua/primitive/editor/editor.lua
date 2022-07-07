@@ -9,6 +9,24 @@
 local PANEL = {}
 PANEL.AllowAutoRefresh = true
 
+surface.CreateFont( "DTreeEditorBaseSmall", { font = "Arial", size = 14 } )
+surface.CreateFont( "DTreeEditorBaseLarge", { font = "Arial Bold", size = 14 } )
+
+local pretty = {
+    fontSmall = "DTreeEditorBaseSmall",
+    fontLarge = "DTreeEditorBaseLarge",
+    panelBevel = 4,
+    colorHeader = Color( 122, 189, 254, 255 ),
+    colorHeaderLight = Color( 122, 189, 254, 255 ),
+    colorTextEntry = Color( 122, 189, 254, 50 ),
+    colorBackground = Color( 245, 245, 245, 255 ),
+    colorRowHighlight = Color( 122, 189, 254, 50 ),
+}
+
+function PANEL:GetEditorSkin()
+    return pretty
+end
+
 function PANEL:PostNodeAdded( pNode )
 end
 
@@ -313,24 +331,6 @@ end
 
 function PANEL:WindowStopDragging()
     self:OnWindowStopDragging()
-end
-
-surface.CreateFont( "DTreeEditorBaseSmall", { font = "Arial", size = 14 } )
-surface.CreateFont( "DTreeEditorBaseLarge", { font = "Arial Bold", size = 14 } )
-
-local pretty = {
-    fontSmall = "DTreeEditorBaseSmall",
-    fontLarge = "DTreeEditorBaseLarge",
-    panelBevel = 4,
-    colorHeader = Color( 122, 189, 254, 255 ),
-    colorHeaderLight = Color( 122, 189, 254, 255 ),
-    colorTextEntry = Color( 122, 189, 254, 50 ),
-    colorBackground = Color( 245, 245, 245, 255 ),
-    colorRowHighlight = Color( 122, 189, 254, 50 ),
-}
-
-function PANEL:GetEditorSkin()
-    return pretty
 end
 
 

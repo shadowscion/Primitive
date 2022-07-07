@@ -94,7 +94,7 @@ local function refresh( node )
 
             local admin = scripted_ents.GetMember( info.entity, "AdminOnly" )
             local spawn = categories[info.category]:AddNode( info.title, admin and "icon16/shield.png" or "icon16/bullet_white.png" )
-            if not admin then spawn.Icon:SetImageColor( Color( 18, 149, 241 ) ) end
+            if not admin then spawn.Icon:SetImageColor( Color( 18, 149, 241 ) ) else spawn:SetToolTip( "admin only" ) end
 
             spawn.DoClick = function()
                 LocalPlayer():ConCommand( string.format( "primitive_spawn %s %s", info.entity, info.command ) )

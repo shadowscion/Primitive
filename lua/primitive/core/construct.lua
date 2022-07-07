@@ -14,8 +14,8 @@ Addon.construct = {}
 
 ]]
 
-local math, table, coroutine, Vector, Angle =
-      math, table, coroutine, Vector, Angle
+local math, table, coroutine, Vector, Angle, rawget, rawset =
+      math, table, coroutine, Vector, Angle, rawget, rawset
 
 local pi = math.pi
 local tau = math.pi * 2
@@ -60,7 +60,7 @@ end
 local triangulate
 
 if CLIENT then
-    local YIELD_THRESHOLD = 30
+    local YIELD_THRESHOLD = 1
 
     local function calcInside( vertices, thread )
         for i = #vertices, 1, -1 do
@@ -826,7 +826,7 @@ registerType( "rail_slider", function( param, data, thread, physics )
         end
     end
 
-    Primitive.construct.util.transform( verts, param.PrimMESHROT, param.PrimMESHPOS, thread )
+    transform( verts, param.PrimMESHROT, param.PrimMESHPOS, thread )
 
     return { verts = verts, faces = faces, convexes = convexes }
 end )
