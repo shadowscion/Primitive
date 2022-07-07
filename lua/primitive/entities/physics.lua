@@ -113,16 +113,18 @@ do
 
 end
 
+
+--[=====[
 do
 
     --[[
         SPUR GEAR
 
         it's beautiful
-        and unfortunately too costly to allow
+        and unfortunately for now, generation is too expensive to include in the addon
     ]]
 
-    local class = { AdminOnly = true }
+    local class = { AdminOnly = false }
 
     local Vector = Vector
     local math, table, rawset, rawget =
@@ -130,173 +132,242 @@ do
 
     local rotateVec = Vector().Rotate
 
-    local function getInvolutePoint( radius, dist )
+    local function curvePointXY( radius, dist )
         local t = ( math.sqrt( dist * dist - radius * radius ) / radius ) - math.acos( radius / dist )
         return dist * math.cos( t ), dist * math.sin( t )
     end
 
-    local construct = { name = "gear", data = { canThread = true } }
-    construct.factory = function( param, data, thread, physics )
-        local verts = {}
+    local function curvePointW( x, y, dist )
+        local len = math.sqrt( x * x + y * y )
+        return ( x / len ) * dist, ( y / len ) * dist
+    end
 
-        local faces
-        if CLIENT then faces = {} end
+    local function curveCenterXY( numTeeth, baseRadius, pitchDiameter )
+        local x, y = curvePointXY( baseRadius, pitchDiameter * 0.5 )
 
-        local convexes
-        if physics then convexes = { {} } end
+        local a = -math.atan( y / x )
+        local l = ( ( -math.pi * 2 ) / ( numTeeth * 2 ) ) * 0.5
 
-        local toothCount = math.Clamp( tonumber( param.PrimCOUNT ) or 20, 3, 60 )
-        local gearModule = math.Clamp( tonumber( param.PrimMODULE ) or 1, 1, 50 )
-        local gearHeight = math.Clamp( tonumber( param.PrimHEIGHT ) or 1, 1, 1000 )
-        local pressureAngle = math.Clamp( tonumber( param.PrimANGLE ) or 20, 0, 45 )
+        return math.cos( a + l ), math.sin( a + l )
+    end
 
-        local addendum = gearModule
-        local dedendum = gearModule * 1.25
+    local function curvePoints( numTeeth, detail, height, pitchDiameter, baseDiameter, tipDiameter, rootDiameter )
+        local baseRadius = baseDiameter * 0.5
 
-        local pitchDia = gearModule * toothCount -- tooth midpoint
-        local rootDia = pitchDia - dedendum * 2 -- tooth start point
-        local tipDia = pitchDia + addendum * 2 -- tooth end point
-        local baseDia = math.max( rootDia, pitchDia * math.cos( math.rad( pressureAngle ) ) ) -- involute start point
-        local baseRad = baseDia * 0.5
+        local cx, cy = curveCenterXY( numTeeth, baseRadius, pitchDiameter )      -- involute center
+        local curveS = ( ( tipDiameter - baseDiameter ) * 0.5 ) / ( detail - 1 ) -- involute step
+        local curveR = baseRadius                                                -- involute radius
 
-        -- setup curve
-        local invCount = SERVER and 2 or 4
-        local invStep = ( ( tipDia - baseDia ) * 0.5 ) / ( invCount - 1 )
-        local invRadius = baseRad
-        local invPoints = {}
+        local dist = ( baseDiameter ~= rootDiameter ) and ( rootDiameter * 0.5 )
+        local curveP = {}
 
-        -- this aligns the curve along the center x axis so it's easy to mirror
-        local xaxis, yaxis = getInvolutePoint( baseRad, pitchDia * 0.5 )
-        local axisAngle = -math.atan( yaxis / xaxis )
-        local arcLength = ( ( -math.pi * 2 ) / ( toothCount * 2 ) ) * 0.5
+        local ibuffer = detail * 2 + 1
 
-        local carc = math.cos( axisAngle + arcLength )
-        local sarc = math.sin( axisAngle + arcLength )
+        for i = 1, detail do
+            local x, y = curvePointXY( baseRadius, curveR )
+            curveR = curveR + curveS
 
-        -- calculate involute
-        local h = gearHeight * 0.5
-        for i = 0, invCount - 1 do
-            local x, y = getInvolutePoint( baseRad, invRadius )
-            invRadius = invRadius + invStep
+            local px = x * cx - y * cy
+            local py = x * cy + y * cx
 
-            local px = x * carc - y * sarc
-            local py = x * sarc + y * carc
-
-            rawset( invPoints, i + 1, Vector( px, py, h ) )
-            rawset( invPoints, invCount * 2 - i, Vector( px, -py, h ) )
+            curveP[i] = Vector( px, py, height )
+            curveP[ibuffer - i] = Vector( px, -py, height )
         end
 
-        if baseDia ~= rootDia then
-            -- normalize and multiply the end points by the root radius
-            -- to get the root points
+        if dist then
+            local rx, ry = curvePointW( curveP[1].x, curveP[1].y, dist )
 
-            local rad = rootDia * 0.5
-
-            local pnt = invPoints[1]
-            local len = math.sqrt( pnt.x * pnt.x + pnt.y * pnt.y )
-            table.insert( invPoints, 1, Vector( ( pnt.x / len ) * rad, ( pnt.y / len ) * rad, h ) )
-
-            local pnt = invPoints[#invPoints]
-            local len = math.sqrt( pnt.x * pnt.x + pnt.y * pnt.y )
-            table.insert( invPoints, Vector( ( pnt.x / len ) * rad, ( pnt.y / len ) * rad, h ) )
+            table.insert( curveP, 1, Vector( rx, ry, height ) )
+            table.insert( curveP, Vector( rx, -ry, height ) )
         end
 
-        local invNumP = #invPoints
-        local invFace = table.GetKeys( invPoints )
+        return curveP
+    end
 
-        local toothStep = 360 / toothCount
-        local toothAngle = Angle()
+    local buildGear
 
-        local capUpper, capLower
-        if faces then
-            capUpper = {}
-            capLower = {}
-        end
+    if CLIENT then
 
-        for i = 0, toothCount - 1 do
-            toothAngle.y = toothStep * i
+        --[[
 
-            local vbuffer = #verts
-            local ibuffer = invNumP * i
+            the only reason these are split by realm is to avoid all the boolean comparisons in the nested loops
+            for face generation
 
-            local faceUpper, faceLower
-            if faces then
-                faceUpper = {}
-                faceLower = {}
-            end
+        ]]
 
-            local convex
-            if physics then
-                convex = {}
-            end
+        function buildGear( curveP, curveN, numTeeth, verts, faces, convexes, thread )
+            local toothAngle = Angle()
+            local toothAngleStep = 360 / numTeeth
 
-            local islast = i == toothCount - 1
-            local isnext = i ~= 0
+            local faceUpperCap = {}
+            local faceLowerCap = {}
 
-            for j = 1, invNumP do
-                local pointUpper = Vector( rawget( invPoints, j ) )
-                rotateVec( pointUpper, toothAngle )
+            for i = 0, numTeeth - 1 do
+                toothAngle.y = toothAngleStep * i
 
-                local pointLower = Vector( pointUpper.x, pointUpper.y, -pointUpper.z )
+                local vbuffer = #verts
+                local ibuffer = curveN * i
 
-                local idUpper = vbuffer + j
-                local idLower = vbuffer + j + invNumP
+                local faceUpper = {}
+                local faceLower = {}
 
-                rawset( verts, idUpper, pointUpper )
-                rawset( verts, idLower, pointLower )
+                local convex
+                if convexes then
+                    convex = {}
+                end
 
-                if faces then
-                    rawset( faceUpper, j, idUpper )
-                    rawset( faceLower, invNumP - j + 1, idLower )
+                local islast = i == numTeeth - 1
+                local isnext = i ~= 0
 
-                    if j < invNumP then
-                        faces[#faces + 1] = { idUpper, idUpper + invNumP, idUpper + invNumP + 1, idUpper + 1 }
+                for j = 1, curveN do
+                    local pointUpper = Vector( curveP[j] )
+                    rotateVec( pointUpper, toothAngle )
+
+                    local pointLower = Vector( pointUpper.x, pointUpper.y, -pointUpper.z )
+
+                    local idUpper = vbuffer + j
+                    local idLower = vbuffer + j + curveN
+
+                    verts[idUpper] = pointUpper
+                    verts[idLower] = pointLower
+
+                    faceUpper[j] = idUpper
+                    faceLower[curveN - j + 1] = idLower
+
+                    if j < curveN then
+                        faces[#faces + 1] = { idUpper, idUpper + curveN, idUpper + curveN + 1, idUpper + 1 }
 
                         if j == 1 then
-                            capUpper[#capUpper + 1] = idUpper
-                            capUpper[#capUpper + 1] = idUpper + invNumP - 1
-                            capLower[#capLower + 1] = idLower
-                            capLower[#capLower + 1] = idLower + invNumP - 1
+                            faceUpperCap[#faceUpperCap + 1] = idUpper
+                            faceUpperCap[#faceUpperCap + 1] = idUpper + curveN - 1
+                            faceLowerCap[#faceLowerCap + 1] = idLower
+                            faceLowerCap[#faceLowerCap + 1] = idLower + curveN - 1
 
                             if isnext then
-                                faces[#faces + 1] = { idLower, idUpper, idUpper - invNumP - 1, idUpper - 1 }
+                                faces[#faces + 1] = { idLower, idUpper, idUpper - curveN - 1, idUpper - 1 }
                             end
                         end
                     elseif islast then
-                        faces[#faces + 1] = { invNumP + 1, 1, idUpper, idLower }
+                        faces[#faces + 1] = { curveN + 1, 1, idUpper, idLower }
+                    end
+
+                    if convexes then
+                        convex[j] = pointUpper
+                        convex[j + curveN] = pointLower
+
+                        if j == 1 or j == curveN then
+                            local circle = convexes[1]
+                            circle[#circle + 1] = verts[idUpper]
+                            circle[#circle + 1] = verts[idLower]
+                        end
                     end
                 end
 
-                if physics then
-                    rawset( convex, j, pointUpper )
-                    rawset( convex, j + invNumP, pointLower )
-
-                    if j == 1 or j == invNumP then
-                        local circle = convexes[1]
-                        circle[#circle + 1] = rawget( verts, idUpper )
-                        circle[#circle + 1] = rawget( verts, idLower )
-                    end
-                end
-            end
-
-            if faces then
                 faces[#faces + 1] = faceUpper
                 faces[#faces + 1] = faceLower
+
+                if convexes then
+                    convexes[#convexes + 1] = convex
+                end
             end
 
-            if physics then
-                convexes[#convexes + 1] = convex
-            end
+            faceLowerCap = table.Reverse( faceLowerCap )
+            faces[#faces + 1] = faceUpperCap
+            faces[#faces + 1] = faceLowerCap
+
+            return verts, faces, convexes
         end
 
-        if faces then
-            capLower = table.Reverse( capLower )
-            faces[#faces + 1] = capUpper
-            faces[#faces + 1] = capLower
+    else
+
+        function buildGear( curveP, curveN, numTeeth, verts, convexes, thread )
+            local toothAngle = Angle()
+            local toothAngleStep = 360 / numTeeth
+
+            for i = 0, numTeeth - 1 do
+                toothAngle.y = toothAngleStep * i
+
+                local vbuffer = #verts
+                local ibuffer = curveN * i
+
+                local convex
+                if convexes then
+                    convex = {}
+                end
+
+                local islast = i == numTeeth - 1
+                local isnext = i ~= 0
+
+                for j = 1, curveN do
+                    local pointUpper = Vector( curveP[j] )
+                    rotateVec( pointUpper, toothAngle )
+
+                    local pointLower = Vector( pointUpper.x, pointUpper.y, -pointUpper.z )
+
+                    local idUpper = vbuffer + j
+                    local idLower = vbuffer + j + curveN
+
+                    verts[idUpper] = pointUpper
+                    verts[idLower] = pointLower
+
+                    if convexes then
+                        convex[j] = pointUpper
+                        convex[j + curveN] = pointLower
+
+                        if j == 1 or j == curveN then
+                            local circle = convexes[1]
+                            circle[#circle + 1] = verts[idUpper]
+                            circle[#circle + 1] = verts[idLower]
+                        end
+                    end
+                end
+
+                if convexes then
+                    convexes[#convexes + 1] = convex
+                end
+            end
+
+            return verts, convexes
+        end
+
+    end
+
+
+    local construct = { name = "gear", data = { canThread = true } }
+    construct.factory = function( param, data, thread, physics )
+        local verts, faces, convexes
+
+        -- gear parameters
+        local numTeeth = math.Clamp( tonumber( param.PrimCOUNT ) or 20, 3, 60 )
+        local module = math.Clamp( tonumber( param.PrimMODULE ) or 1, 1, 50 )
+        local gearHeight = math.Clamp( tonumber( param.PrimHEIGHT ) or 1, 1, 1000 ) * 0.5
+        local pressureAngle = math.Clamp( tonumber( param.PrimANGLE ) or 20, 0, 45 )
+
+        -- gear setup
+        local toothDetail = SERVER and 2 or 4
+        local addendum = module
+        local dedendum = module * 1.25
+        local pitchDiameter = module * numTeeth                                                              -- tooth mid point
+        local rootDiameter = pitchDiameter - dedendum * 2                                                    -- tooth start point
+        local tipDiameter = pitchDiameter + addendum * 2                                                     -- tooth end point
+        local baseDiameter = math.max( rootDiameter, pitchDiameter * math.cos( math.rad( pressureAngle ) ) ) -- involute start point
+
+        -- gear profile curve
+        local curveP = curvePoints( numTeeth, toothDetail, gearHeight, pitchDiameter, baseDiameter, tipDiameter, rootDiameter )
+        local curveN = #curveP
+
+        -- gear profile array
+        local verts, faces, convexes
+
+        if CLIENT then
+            verts, faces, convexes = buildGear( curveP, curveN, numTeeth, {}, {}, physics and { {} }, thread )
+        else
+            verts, convexes = buildGear( curveP, curveN, numTeeth, {}, physics and { {} }, thread )
         end
 
         return { verts = verts, faces = faces, convexes = convexes }
     end
+
 
     function class:PrimitiveGetConstruct()
         local keys = self:PrimitiveGetKeys()
@@ -308,11 +379,6 @@ do
         self:PrimitiveVar( "PrimMODULE", "Float", { category = "gear", title = "module", panel = "float", min = 1, max = 50 }, true )
         self:PrimitiveVar( "PrimANGLE", "Float", { category = "gear", title = "pressure angle", panel = "float", min = 1, max = 45 }, true )
         self:PrimitiveVar( "PrimHEIGHT", "Float", { category = "gear", title = "height", panel = "float", min = 1, max = 1000 }, true )
-
-        -- TODO: way to add debugs per ent
-
-        --local edit = self:GetEditingData()
-        --edit.PrimDEBUG.lbl = { "hitbox", "vertex", "convex", "gear_profile" }
     end
 
 
@@ -322,7 +388,7 @@ do
             duplicator.StoreBoneModifier( self, 0, "physprops", { GravityToggle = true, Material = "gmod_ice" } )
         end
 
-        self:SetPrimCOUNT( 4 )
+        self:SetPrimCOUNT( 20 )
         self:SetPrimMODULE( 7 )
         self:SetPrimANGLE( 20 )
         self:SetPrimHEIGHT( 12 )
@@ -353,3 +419,5 @@ do
     Primitive.funcs.registerClass( "gear", class, spawnlist )
 
 end
+
+--]=====]

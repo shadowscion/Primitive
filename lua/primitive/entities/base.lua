@@ -292,7 +292,6 @@ function class:PrimitiveReconstruct()
     end
 
     self:PrimitiveSetThread( result )
-    --self.primitive.thread = result
 end
 
 
@@ -589,7 +588,7 @@ if CLIENT then
     local dbg_b = Color( 0, 0, 255 )
     local dbg_y = Color( 255, 255, 0, 50 )
     local dbg_text = Color( 255, 255, 255, 255 )
-    local dbg_vertex = Color( 255, 255, 255, 255 )
+    local dbg_vertex = Color( 255, 255, 0, 255 )
 
     local cam, surface, render = cam, surface, render
     local WorldToLocal, LocalToWorld = WorldToLocal, LocalToWorld
@@ -639,7 +638,7 @@ if CLIENT then
         if self.debugVertex and self.primitive.result and self.primitive.result.verts then
             cam.Start2D()
 
-            surface.SetFont( "DebugFixedSmall" )
+            surface.SetFont( "DermaDefaultBold" )
             surface.SetTextColor( dbg_vertex )
             surface.SetDrawColor( dbg_vertex )
 
