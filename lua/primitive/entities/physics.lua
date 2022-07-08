@@ -1,4 +1,219 @@
 
+
+do
+
+    local class = {}
+
+
+    function class:PrimitiveSetupDataTables()
+
+        local types = { linear = "linear", cosine = "cosine", quadratic = "quadratic" }
+        self:PrimitiveVar( "PrimTDIST", "String", { category = "airfoil", title = "distribution", panel = "combo", values = types }, true )
+
+        self:PrimitiveVar( "PrimAFM", "Float", { category = "airfoil", title = "max camber % (M)", panel = "float", min = 0, max = 9.5 }, true )
+        self:PrimitiveVar( "PrimAFP", "Float", { category = "airfoil", title = "max camber pos % (P)", panel = "float", min = 0, max = 90 }, true )
+        self:PrimitiveVar( "PrimAFT", "Float", { category = "airfoil", title = "chord thickness % (T)", panel = "float", min = 1, max = 40 }, true )
+
+        self:PrimitiveVar( "PrimCHORD", "Int", { category = "airfoil", title = "chord length", panel = "int",  min = 1, max = 1000 }, true )
+
+        self:PrimitiveVar( "PrimWING", "Int", { category = "wing", title = "length", panel = "int",  min = 1, max = 2000 }, true )
+
+    end
+
+    function class:PrimitivePostNetworkNotify( name, keyval )
+    end
+
+
+    function class:PrimitiveOnSetup( initial, args )
+        if initial and SERVER then
+            duplicator.StoreEntityModifier( self, "mass", { Mass = 100 } )
+        end
+
+        self:SetPrimTDIST( "cosine" )
+        self:SetPrimAFM( 2 )
+        self:SetPrimAFP( 40 )
+        self:SetPrimAFT( 12 )
+        self:SetPrimCHORD( 100 )
+        self:SetPrimWING( 100 )
+
+        self:SetPrimDEBUG( bit.bor( 4 ) )
+        self:SetPrimMESHPHYS( true )
+        self:SetPrimMESHSMOOTH( 65 )
+    end
+
+
+    local construct = { data = { name = "airfoil" } }
+    function class:PrimitiveGetConstruct()
+        local keys = self:PrimitiveGetKeys()
+        return Primitive.construct.generate( construct, "airfoil", keys, true, keys.PrimMESHPHYS )
+    end
+
+    local tdistr = {
+        linear = function( lhs, rhs ) return 1 - lhs / rhs end,
+        cosine = function( lhs, rhs ) return 0.5 * ( math.cos( ( lhs / rhs ) * math.pi ) + 1 ) end,
+        quadratic = function( lhs, rhs ) return ( 1 - lhs / rhs ) ^ 2 end,
+    }
+
+    local function airfoil( distr, samples, chord, M, P, T )
+        --[[
+            coefficients from https://en.wikipedia.org/wiki/NACA_airfoil#Equation_for_a_symmetrical_4-digit_NACA_airfoil
+                -0.1015   open edge
+                -0.1036   closed edge
+
+            notation = mpxx 2412
+                M = m / 100
+                P = p / 10
+                T = xx / 100
+        ]]
+
+        local M = M / 100
+        local P = P / 10
+        local T = T / 100
+
+        local a0 = 0.2969
+        local a1 = -0.1260
+        local a2 = -0.3516
+        local a3 = 0.2843
+        local a4 = -0.1036
+
+        local distr = tdistr[distr] or tdistr.linear
+        local buffer = samples * 2 + 2
+        local points = {}
+
+        for i = 0, samples do
+            local x = distr( i, samples )
+            local yc, dyc_dx
+
+            -- https://en.wikipedia.org/wiki/NACA_airfoil#Equation_for_a_cambered_4-digit_NACA_airfoil
+            -- oof
+            if x >= 0 and x < P then
+                yc = ( M / P ^ 2 ) * ( ( 2 * P * x ) - x ^ 2 )
+                dyc_dx = ( ( 2 * M ) / ( P ^ 2 ) ) * ( P - x )
+
+            elseif x >= P and x <= 1 then
+                yc = ( M / ( 1 - P ) ^ 2 ) * ( 1 - ( 2 * P ) + ( 2 * P * x ) - ( x ^ 2 ) )
+                dyc_dx = ( ( 2 * M ) / ( ( 1 - P ) ^ 2 ) ) * ( P - x )
+
+            end
+
+            local theta = math.atan( dyc_dx )
+            local yt = 5 * T * ( a0 * math.sqrt( x ) + a1 * x + a2 * x ^ 2 + a3 * x ^ 3 + a4 * x ^ 4 )
+
+            -- upper
+            local ux = x - yt * math.sin( theta )
+            local uy = yc + yt * math.cos( theta )
+
+            -- lower
+            local lx = x + yt * math.sin( theta )
+            local ly = yc - yt * math.cos( theta )
+
+            points[i + 1] = Vector( ux * chord, 0, uy * chord )
+            points[buffer - i] = Vector( lx * chord, 0, ly * chord )
+        end
+
+       -- points[#points].z = points[1].z
+
+        return points
+    end
+
+    construct.factory = function( param, data, thread, physics )
+        local verts, faces, convexes
+
+        local maxDetail = SERVER and 5 or 25
+        local chordLength = tonumber( param.PrimCHORD ) or 1
+        local wingLength = tonumber( param.PrimWING ) or 1
+
+        local M = math.Clamp( tonumber( param.PrimAFM ) or 0, 0, 9.5 )
+        local P = math.Clamp( tonumber( param.PrimAFP ) or 0, 0, 90 )
+        local T = math.Clamp( tonumber( param.PrimAFT ) or 0 , 1, 40 )
+
+        local airfoilPoints = airfoil( param.PrimTDIST, maxDetail, chordLength, M, P, T )
+        local airfoilPointsCount = #airfoilPoints
+
+        local verts = {}
+        local faces = {}
+        local loftCount = 2
+
+        --[[
+            each loft section needs to be a convex
+            should just be a cube for simplicty
+        ]]
+
+        for i = 0, loftCount - 1 do
+            local loftY = ( i / loftCount ) * wingLength
+
+            local ibuffer = i * airfoilPointsCount
+            local isnext = i < loftCount - 1
+            local cap = {}
+
+            for j = 1, airfoilPointsCount do
+                local point = Vector( airfoilPoints[j] )
+                point.y = point.y + loftY
+
+                local index = #verts + 1
+                verts[index] = point
+
+                if CLIENT then
+                    if j < airfoilPointsCount then
+                        if isnext then
+                            local v1 = j + ibuffer
+                            local v2 = j + airfoilPointsCount + ibuffer
+                            local v3 = v2 + 1
+                            local v4 = v1 + 1
+                            faces[#faces + 1] = { v1, v2, v3, v4 }
+                        end
+
+                        local v1 = j + ibuffer
+                        local v2 = v1 + 1
+                        local v3 = 2 * ibuffer + airfoilPointsCount - v1
+                        local v4 = v3 + 1
+
+                        if i == 0 then
+                            faces[#faces + 1] = { v1, v2, v3, v4 }
+                        else
+                            faces[#faces + 1] = { v4, v3, v2, v1 }
+                        end
+                    end
+                end
+            end
+
+        end
+
+        if physics then
+            convexes = { verts }
+        end
+
+        return { verts = verts, faces = faces, convexes = convexes }
+    end
+
+
+    local spawnlist
+    if CLIENT then
+        spawnlist = {
+            { category = "physics", entity = "primitive_airfoil", title = "airfoil", command = "" },
+        }
+
+        local callbacks = {
+            EDITOR_OPEN = function ( self, editor, name, val )
+                for k, cat in pairs( editor.categories ) do
+                    if k == "debug" or k == "mesh" or k == "model" then cat:ExpandRecurse( false ) else cat:ExpandRecurse( true ) end
+                end
+            end,
+        }
+
+        function class:EditorCallback( editor, name, val )
+            if callbacks[name] then callbacks[name]( self, editor, name, val ) end
+        end
+    end
+
+    Primitive.funcs.registerClass( "airfoil", class, spawnlist )
+
+end
+
+
+
+
+
 do
 
     local class = {}

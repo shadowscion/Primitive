@@ -2,36 +2,52 @@
 local class = { Type = "anim", Base = "base_anim", Spawnable = false, AdminOnly = true }
 
 --[[
-    HOOK: "Primitive_PreRebuildPhysics"
-    DESC: called before physics are rebuilt
+    local class = {}
 
-    hook.Add( "Primitive_PreRebuildPhysics", "", function( self, properties )
+    local construct = { data = { name = "template" } }
+    construct.factory = function( param, data, thread, physics )
+        local verts, faces, convexes
 
-        properties is a table that can contain
-            .mass (number)
-            .physprop (table)
-                .Gravity (number)
-                .Material (string)
-            .constraints (table)
+        return { verts = verts, faces = faces, convexes = convexes }
+    end
 
-    end )
+    function class:PrimitiveGetConstruct()
+        local keys = self:PrimitiveGetKeys()
+        return Primitive.construct.generate( construct, "template", keys, true, keys.PrimMESHPHYS )
+    end
 
+    function class:PrimitiveSetupDataTables()
+    end
 
-    HOOK: "Primitive_PostRebuildPhysics"
-    DESC: called after physics are rebuilt but before properties are restored
-
-    hook.Add( "Primitive_PostRebuildPhysics", "", function( self, properties )
-
-        -- you can modify the table passed to PrimitiveSetProperties
-        if properties.mass and properties.mass > 1000 then
-            properties.mass = 1000
+    function class:PrimitiveOnSetup( initial, args )
+        if initial and SERVER then
+            duplicator.StoreEntityModifier( self, "mass", { Mass = 100 } )
         end
 
-        -- or set this to true to prevent PrimitiveSetProperties, so you can use your own function here
-        self.m_bIgnoreSetProperties = true
-        SomeFunction( self )
+        self:SetPrimDEBUG( bit.bor( 1, 2 ) )
+        self:SetPrimMESHPHYS( false )
+    end
 
-    end )
+    local spawnlist
+    if CLIENT then
+        spawnlist = {
+            { category = "generic", entity = "primitive_template", title = "template", command = "" },
+        }
+
+        local callbacks = {
+            EDITOR_OPEN = function ( self, editor, name, val )
+                for k, cat in pairs( editor.categories ) do
+                    if k == "debug" or k == "mesh" or k == "model" then cat:ExpandRecurse( false ) else cat:ExpandRecurse( true ) end
+                end
+            end,
+        }
+
+        function class:EditorCallback( editor, name, val )
+            if callbacks[name] then callbacks[name]( self, editor, name, val ) end
+        end
+    end
+
+    Primitive.funcs.registerClass( "template", class, spawnlist )
 ]]
 
 function class:PostEntityPaste()
@@ -581,7 +597,7 @@ if CLIENT then
     local baseMaterial = Material( "hunter/myplastic" )
     local ___error = Material( "___error" )
     local ___physics = CreateMaterial( "primitivephyswireframe", "Wireframe_DX9", {} )
-    ___physics:SetVector( "$color", Vector( 1, 0, 1 ) )
+    ___physics:SetVector( "$color", Vector( 1, 1, 1 ) )
 
     local dbg_g = Color( 0, 255, 0 )
     local dbg_r = Color( 255, 0, 0 )
@@ -611,10 +627,12 @@ if CLIENT then
         if self.debugConvex and self.primitive.physmesh and self.primitive.physmesh:IsValid() then
             cam.PushModelMatrix( self:GetWorldTransformMatrix() )
 
+            render.SetBlend( 0.25 )
             render.SetColorModulation( 1, 0, 1 )
             render.SetMaterial( ___physics )
             self.primitive.physmesh:Draw()
             render.SetColorModulation( 1, 1, 1 )
+            render.SetBlend( 1 )
 
             cam.PopModelMatrix()
         end
