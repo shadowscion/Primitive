@@ -7,18 +7,27 @@ do
 
     function class:PrimitiveSetupDataTables()
 
-        local types = { linear = "linear", cosine = "cosine", quadratic = "quadratic" }
-        self:PrimitiveVar( "PrimTDIST", "String", { category = "airfoil", title = "distribution", panel = "combo", values = types }, true )
+        local help
 
-        self:PrimitiveVar( "PrimAFM", "Float", { category = "airfoil", title = "max camber % (M)", panel = "float", min = 0, max = 9.5 }, true )
-        self:PrimitiveVar( "PrimAFP", "Float", { category = "airfoil", title = "max camber pos % (P)", panel = "float", min = 0, max = 90 }, true )
-        self:PrimitiveVar( "PrimAFT", "Float", { category = "airfoil", title = "chord thickness % (T)", panel = "float", min = 1, max = 40 }, true )
+        self:PrimitiveVar( "PrimTDIST", "String", { category = "airfoil", title = "point distribution", panel = "combo", values = { linear = "linear", cosine = "cosine", quadratic = "quadratic" } }, true )
 
-        self:PrimitiveVar( "PrimCHORD", "Int", { category = "airfoil", title = "chord length", panel = "int",  min = 1, max = 1000 }, true )
+        help = "'M' term - the maximum camber as a percentage of the chord"
+        self:PrimitiveVar( "PrimAFM", "Float", { category = "airfoil", title = "max camber", panel = "float", min = 0, max = 9.5, help = help }, true )
 
-        self:PrimitiveVar( "PrimWING", "Int", { category = "wing", title = "length", panel = "int",  min = 1, max = 2000 }, true )
+        help = "'P' term - the distance between the leading edge and the maximum camber"
+        self:PrimitiveVar( "PrimAFP", "Float", { category = "airfoil", title = "max camber pos", panel = "float", min = 0, max = 90, help = help }, true )
 
+        help = "'T' term - the maximum thickness of the airfoil as a percentage of the chord"
+        self:PrimitiveVar( "PrimAFT", "Float", { category = "airfoil", title = "thickness", panel = "float", min = 1, max = 40, help = help }, true )
+
+        self:PrimitiveVar( "PrimCHORD", "Int", { category = "wing", title = "chord", panel = "int",  min = 1, max = 1000 }, true )
+        self:PrimitiveVar( "PrimSPAN", "Int", { category = "wing", title = "span", panel = "int",  min = 1, max = 2000 }, true )
+        self:PrimitiveVar( "PrimSWEEP", "Int", { category = "wing", title = "sweep", panel = "int",  min = -45, max = 45 }, true )
+        self:PrimitiveVar( "PrimDIHED", "Int", { category = "wing", title = "dihedral", panel = "int",  min = -5, max = 5 }, true )
+        self:PrimitiveVar( "PrimTAPERX", "Float", { category = "wing", title = "taper (horizontal)", panel = "float",  min = 0, max = 1 }, true )
+        self:PrimitiveVar( "PrimTAPERZ", "Float", { category = "wing", title = "taper (vertical)", panel = "float",  min = 0, max = 1 }, true )
     end
+
 
     function class:PrimitivePostNetworkNotify( name, keyval )
     end
@@ -33,12 +42,17 @@ do
         self:SetPrimAFM( 2 )
         self:SetPrimAFP( 40 )
         self:SetPrimAFT( 12 )
-        self:SetPrimCHORD( 100 )
-        self:SetPrimWING( 100 )
+        self:SetPrimCHORD( 200 )
+        self:SetPrimSPAN( 200 )
+        self:SetPrimSWEEP( -20 )
+        self:SetPrimDIHED( 5 )
+        self:SetPrimTAPERX( 0.75 )
+        self:SetPrimTAPERZ( 0.75 )
 
-        self:SetPrimDEBUG( bit.bor( 4 ) )
+
+        self:SetPrimDEBUG( bit.bor( 2 ) )
         self:SetPrimMESHPHYS( true )
-        self:SetPrimMESHSMOOTH( 65 )
+        self:SetPrimMESHSMOOTH( 30 )
     end
 
 
@@ -56,14 +70,18 @@ do
 
     local function airfoil( distr, samples, chord, M, P, T )
         --[[
-            coefficients from https://en.wikipedia.org/wiki/NACA_airfoil#Equation_for_a_symmetrical_4-digit_NACA_airfoil
-                -0.1015   open edge
-                -0.1036   closed edge
+
+            terms and coefficients from https://en.wikipedia.org/wiki/NACA_airfoil#Equation_for_a_symmetrical_4-digit_NACA_airfoil
 
             notation = mpxx 2412
-                M = m / 100
-                P = p / 10
-                T = xx / 100
+
+            M = m / 100
+            P = p / 10
+            T = xx / 100
+
+            -0.1015   open edge a4
+            -0.1036   closed edge a4
+
         ]]
 
         local M = M / 100
@@ -76,9 +94,11 @@ do
         local a3 = 0.2843
         local a4 = -0.1036
 
-        local distr = tdistr[distr] or tdistr.linear
         local buffer = samples * 2 + 2
         local points = {}
+        local valid = true
+
+        local offsetX = chord * 0.5
 
         for i = 0, samples do
             local x = distr( i, samples )
@@ -107,11 +127,9 @@ do
             local lx = x + yt * math.sin( theta )
             local ly = yc - yt * math.cos( theta )
 
-            points[i + 1] = Vector( ux * chord, 0, uy * chord )
-            points[buffer - i] = Vector( lx * chord, 0, ly * chord )
+            points[i + 1] = Vector( -ux * chord + offsetX, 0, uy * chord )
+            points[buffer - i] = Vector( -lx * chord + offsetX, 0, ly * chord )
         end
-
-       -- points[#points].z = points[1].z
 
         return points
     end
@@ -119,48 +137,89 @@ do
     construct.factory = function( param, data, thread, physics )
         local verts, faces, convexes
 
+        -- airfoil parameters
         local maxDetail = SERVER and 5 or 25
-        local chordLength = tonumber( param.PrimCHORD ) or 1
-        local wingLength = tonumber( param.PrimWING ) or 1
+        local chord = tonumber( param.PrimCHORD ) or 1
 
         local M = math.Clamp( tonumber( param.PrimAFM ) or 0, 0, 9.5 )
         local P = math.Clamp( tonumber( param.PrimAFP ) or 0, 0, 90 )
-        local T = math.Clamp( tonumber( param.PrimAFT ) or 0 , 1, 40 )
+        local T = math.Clamp( tonumber( param.PrimAFT ) or 0, 1, 40 )
 
-        local airfoilPoints = airfoil( param.PrimTDIST, maxDetail, chordLength, M, P, T )
+        local airfoilPoints = airfoil( tdistr[param.PrimTDIST] or tdistr.linear, maxDetail, chord, M, P, T )
         local airfoilPointsCount = #airfoilPoints
 
-        local verts = {}
-        local faces = {}
+        -- wing parameters
         local loftCount = 2
+        local span = ( tonumber( param.PrimSPAN ) or 1 ) * 2
+
+        local taperX = tonumber( param.PrimTAPERX ) or 0
+        local taperZ = tonumber( param.PrimTAPERZ ) or 0
+
+        local tipScale
+        if taperX ~= 0 or taperZ ~= 0 then
+            tipScale = Vector( 1 - taperX, 1, 1 - taperZ )
+        end
+
+        local sweep = tonumber( param.PrimSWEEP ) or 0
+        if sweep == 0 then sweep = nil else
+            -- angle * ( wingspan + chord x )
+            sweep = math.sin( math.rad( sweep ) ) * span --( span + ( chord * ( 1 - taperX ) ) )
+        end
+
+        local dihedral = tonumber( param.PrimDIHED ) or 0
+        if dihedral == 0 then dihedral = nil else
+            -- angle * ( wingspan + chord z )
+            dihedral = math.sin( math.rad( dihedral ) ) * span -- ( span + ( chord * ( 1 - taperZ ) ) )
+        end
 
         --[[
-            each loft section needs to be a convex
-            should just be a cube for simplicty
+
+            in order to remain convex, each loft section needs to be broken down into convex shapes
+
+            probably not worth it
+
         ]]
 
-        for i = 0, loftCount - 1 do
-            local loftY = ( i / loftCount ) * wingLength
+        local verts = {}
+        if CLIENT then faces = {} end
+
+        local loopn = loftCount - 1
+        for i = 0, loopn do
+            local loftY = ( i / loftCount ) * span
 
             local ibuffer = i * airfoilPointsCount
-            local isnext = i < loftCount - 1
-            local cap = {}
+            local isnext = i < loopn
 
             for j = 1, airfoilPointsCount do
                 local point = Vector( airfoilPoints[j] )
+
+                if not isnext then
+                    if tipScale then
+                        point:Mul( tipScale )
+                    end
+
+                    if dihedral then
+                        point.z = point.z + dihedral
+                    end
+
+                    if sweep then
+                        point.x = point.x + sweep
+                    end
+                end
+
                 point.y = point.y + loftY
 
                 local index = #verts + 1
                 verts[index] = point
 
-                if CLIENT then
-                    if j < airfoilPointsCount then
+                if faces then
+                    if j < airfoilPointsCount and j ~= airfoilPointsCount * 0.5 then
                         if isnext then
                             local v1 = j + ibuffer
                             local v2 = j + airfoilPointsCount + ibuffer
                             local v3 = v2 + 1
                             local v4 = v1 + 1
-                            faces[#faces + 1] = { v1, v2, v3, v4 }
+                            faces[#faces + 1] = { v4, v3, v2, v1 }
                         end
 
                         local v1 = j + ibuffer
@@ -169,9 +228,9 @@ do
                         local v4 = v3 + 1
 
                         if i == 0 then
-                            faces[#faces + 1] = { v1, v2, v3, v4 }
-                        else
                             faces[#faces + 1] = { v4, v3, v2, v1 }
+                        else
+                            faces[#faces + 1] = { v1, v2, v3, v4 }
                         end
                     end
                 end

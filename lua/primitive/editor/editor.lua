@@ -224,6 +224,8 @@ function PANEL:EditVariable( editName, editData )
 
     row:Setup( editData )
 
+    if isstring( editData.help ) then row:SetTooltip( editData.help ) end
+
     local callback = isfunction( self.m_Entity.EditorCallback )
 
     row.DataUpdate = function( _ )
