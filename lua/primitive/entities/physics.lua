@@ -1,59 +1,7 @@
 
-
 do
 
     local class = {}
-
-
-    function class:PrimitiveSetupDataTables()
-
-        local help
-
-        self:PrimitiveVar( "PrimTDIST", "String", { category = "airfoil", title = "point distribution", panel = "combo", values = { linear = "linear", cosine = "cosine", quadratic = "quadratic" } }, true )
-
-        help = "'M' term - the maximum camber as a percentage of the chord"
-        self:PrimitiveVar( "PrimAFM", "Float", { category = "airfoil", title = "max camber", panel = "float", min = 0, max = 9.5, help = help }, true )
-
-        help = "'P' term - the distance between the leading edge and the maximum camber"
-        self:PrimitiveVar( "PrimAFP", "Float", { category = "airfoil", title = "max camber pos", panel = "float", min = 0, max = 90, help = help }, true )
-
-        help = "'T' term - the maximum thickness of the airfoil as a percentage of the chord"
-        self:PrimitiveVar( "PrimAFT", "Float", { category = "airfoil", title = "thickness", panel = "float", min = 1, max = 40, help = help }, true )
-
-        self:PrimitiveVar( "PrimCHORD", "Int", { category = "wing", title = "chord", panel = "int",  min = 1, max = 1000 }, true )
-        self:PrimitiveVar( "PrimSPAN", "Int", { category = "wing", title = "span", panel = "int",  min = 1, max = 2000 }, true )
-        self:PrimitiveVar( "PrimSWEEP", "Int", { category = "wing", title = "sweep", panel = "int",  min = -45, max = 45 }, true )
-        self:PrimitiveVar( "PrimDIHED", "Int", { category = "wing", title = "dihedral", panel = "int",  min = -5, max = 5 }, true )
-        self:PrimitiveVar( "PrimTAPERX", "Float", { category = "wing", title = "taper (horizontal)", panel = "float",  min = 0, max = 1 }, true )
-        self:PrimitiveVar( "PrimTAPERZ", "Float", { category = "wing", title = "taper (vertical)", panel = "float",  min = 0, max = 1 }, true )
-    end
-
-
-    function class:PrimitivePostNetworkNotify( name, keyval )
-    end
-
-
-    function class:PrimitiveOnSetup( initial, args )
-        if initial and SERVER then
-            duplicator.StoreEntityModifier( self, "mass", { Mass = 100 } )
-        end
-
-        self:SetPrimTDIST( "cosine" )
-        self:SetPrimAFM( 2 )
-        self:SetPrimAFP( 40 )
-        self:SetPrimAFT( 12 )
-        self:SetPrimCHORD( 200 )
-        self:SetPrimSPAN( 200 )
-        self:SetPrimSWEEP( -20 )
-        self:SetPrimDIHED( 5 )
-        self:SetPrimTAPERX( 0.75 )
-        self:SetPrimTAPERZ( 0.75 )
-
-
-        self:SetPrimDEBUG( bit.bor( 2 ) )
-        self:SetPrimMESHPHYS( true )
-        self:SetPrimMESHSMOOTH( 30 )
-    end
 
 
     local construct = { data = { name = "airfoil" } }
@@ -62,13 +10,81 @@ do
         return Primitive.construct.generate( construct, "airfoil", keys, true, keys.PrimMESHPHYS )
     end
 
-    local tdistr = {
-        linear = function( lhs, rhs ) return 1 - lhs / rhs end,
-        cosine = function( lhs, rhs ) return 0.5 * ( math.cos( ( lhs / rhs ) * math.pi ) + 1 ) end,
-        quadratic = function( lhs, rhs ) return ( 1 - lhs / rhs ) ^ 2 end,
-    }
 
-    local function airfoil( distr, samples, chord, M, P, T )
+    function class:PrimitiveSetupDataTables()
+
+        local helpDST = "Alters the density of vertices toward the leading and trailing edges"
+        local helpAFM = "'M' term - the maximum camber as a percentage of the chord"
+        local helpAFP = "'P' term - the distance between the leading edge and the maximum camber"
+        local helpAFT = "'T' term - the maximum thickness of the airfoil as a percentage of the chord"
+        local helpCHORD = "The distance between the leading and trailing edges"
+
+        local category = "airfoil"
+        self:PrimitiveVar( "PrimINTERP", "String", { category = category, title = "point distribution", panel = "combo", values = { linear = "linear", cosine = "cosine", quadratic = "quadratic" }, help = helpDST }, true )
+        self:PrimitiveVar( "PrimAFM", "Float", { category = category, title = "max camber", panel = "float", min = 0, max = 9.5, help = helpAFM }, true )
+        self:PrimitiveVar( "PrimAFP", "Float", { category = category, title = "max camber pos", panel = "float", min = 0, max = 90, help = helpAFP }, true )
+        self:PrimitiveVar( "PrimAFTR", "Float", { category = category, title = "thickness (root)", panel = "float", min = 1, max = 40, help = helpAFT }, true )
+        self:PrimitiveVar( "PrimAFTT", "Float", { category = category, title = "thickness (tip)", panel = "float", min = 1, max = 40, help = helpAFT }, true )
+        self:PrimitiveVar( "PrimCHORDR", "Float", { category = category, title = "chord (root)", panel = "float", min = 1, max = 2000, help = helpCHORD }, true )
+        self:PrimitiveVar( "PrimCHORDT", "Float", { category = category, title = "chord (tip)", panel = "float", min = 1, max = 2000, help = helpCHORD }, true )
+
+        local category = "wing"
+        self:PrimitiveVar( "PrimSPAN", "Float", { category = category, title = "span", panel = "float", min = 1, max = 2000 }, true )
+        self:PrimitiveVar( "PrimSWEEP", "Float", { category = category, title = "sweep angle", panel = "float", min = -45, max = 45 }, true )
+        self:PrimitiveVar( "PrimDIHEDRAL", "Float", { category = category, title = "dihedral angle", panel = "float", min = -45, max = 45 }, true )
+
+        local category = "control surface"
+
+        self:PrimitiveVar( "PrimSURFOPTS", "Int", { category = category, title = "options", panel = "bitfield", lbl = { "enabled", "inverse clip" } }, true )
+
+    end
+
+
+    function class:PrimitiveOnSetup( initial, args )
+        if initial and SERVER then
+            duplicator.StoreEntityModifier( self, "mass", { Mass = 100 } )
+        end
+
+        self:SetPrimINTERP( "cosine" )
+        self:SetPrimAFM( 2 )
+        self:SetPrimAFP( 40 )
+        self:SetPrimAFTR( 12 )
+        self:SetPrimAFTT( 12 )
+        self:SetPrimCHORDR( 100 )
+        self:SetPrimCHORDT( 100 )
+
+        self:SetPrimSPAN( 300 )
+        self:SetPrimSWEEP( 0 )
+
+        self:SetPrimDEBUG( bit.bor( 1, 2 ) )
+        self:SetPrimMESHSMOOTH( 60 )
+        self:SetPrimMESHPHYS( false )
+    end
+
+
+    local spawnlist
+    if CLIENT then
+        spawnlist = {
+            { category = "physics", entity = "primitive_airfoil", title = "airfoil", command = "" },
+        }
+
+        local callbacks = {
+            EDITOR_OPEN = function ( self, editor, name, val )
+                for k, cat in pairs( editor.categories ) do
+                    if k == "debug" or k == "mesh" or k == "model" then cat:ExpandRecurse( false ) else cat:ExpandRecurse( true ) end
+                end
+            end,
+        }
+
+        function class:EditorCallback( editor, name, val )
+            if callbacks[name] then callbacks[name]( self, editor, name, val ) end
+        end
+    end
+
+    Primitive.funcs.registerClass( "airfoil", class, spawnlist )
+
+
+    local function NACA4DIGIT( distr, samples, chord, M, P, T, xoff, yoff, zoff )
         --[[
 
             terms and coefficients from https://en.wikipedia.org/wiki/NACA_airfoil#Equation_for_a_symmetrical_4-digit_NACA_airfoil
@@ -84,6 +100,10 @@ do
 
         ]]
 
+        local xoff = xoff or 0
+        local yoff = yoff or 0
+        local zoff = zoff or 0
+
         local M = M / 100
         local P = P / 10
         local T = T / 100
@@ -94,11 +114,9 @@ do
         local a3 = 0.2843
         local a4 = -0.1036
 
+        local samples = samples - 1
         local buffer = samples * 2 + 2
         local points = {}
-        local valid = true
-
-        local offsetX = chord * 0.5
 
         for i = 0, samples do
             local x = distr( i, samples )
@@ -127,148 +145,127 @@ do
             local lx = x + yt * math.sin( theta )
             local ly = yc - yt * math.cos( theta )
 
-            points[i + 1] = Vector( -ux * chord + offsetX, 0, uy * chord )
-            points[buffer - i] = Vector( -lx * chord + offsetX, 0, ly * chord )
+            points[i + 1] = Vector( -ux * chord + xoff, yoff, uy * chord + zoff + 0 )
+            points[buffer - i] = Vector( -lx * chord + xoff, yoff, ly * chord + zoff - 0 )
         end
 
         return points
     end
 
+    local interp = {}
+    interp.linear = function( lhs, rhs ) return 1 - lhs / rhs end
+    interp.cosine = function( lhs, rhs ) return 0.5 * ( math.cos( ( lhs / rhs ) * math.pi ) + 1 ) end
+    interp.quadratic = function( lhs, rhs ) return ( 1 - lhs / rhs ) ^ 2 end
+
     construct.factory = function( param, data, thread, physics )
         local verts, faces, convexes
 
-        -- airfoil parameters
-        local maxDetail = SERVER and 5 or 25
-        local chord = tonumber( param.PrimCHORD ) or 1
+        -- parameters
+        local yoff = param.PrimSPAN
+        local xoff = math.sin( math.rad( param.PrimSWEEP * 2 ) ) * ( yoff + param.PrimCHORDR )
+        local zoff = math.sin( math.rad( param.PrimDIHEDRAL * 2 ) ) * ( yoff + param.PrimCHORDR )
+
+        local samples = SERVER and 5 or 50
+        local spacing = interp[param.PrimINTERP] or interp.linear
 
         local M = math.Clamp( tonumber( param.PrimAFM ) or 0, 0, 9.5 )
         local P = math.Clamp( tonumber( param.PrimAFP ) or 0, 0, 90 )
-        local T = math.Clamp( tonumber( param.PrimAFT ) or 0, 1, 40 )
+        local rT = math.Clamp( tonumber( param.PrimAFTR ) or 0, 1, 40 )
+        local tT = math.Clamp( tonumber( param.PrimAFTT ) or 0, 1, 40 )
+        local rC = tonumber( param.PrimCHORDR ) or 1
+        local tC = tonumber( param.PrimCHORDT ) or 1
 
-        local airfoilPoints = airfoil( tdistr[param.PrimTDIST] or tdistr.linear, maxDetail, chord, M, P, T )
-        local airfoilPointsCount = #airfoilPoints
+        local rV = NACA4DIGIT( spacing, samples, rC, M, P, rT )
+        local tV = NACA4DIGIT( spacing, samples, tC, M, P, tT, xoff, yoff, zoff )
 
-        -- wing parameters
-        local loftCount = 2
-        local span = ( tonumber( param.PrimSPAN ) or 1 ) * 2
-
-        local taperX = tonumber( param.PrimTAPERX ) or 0
-        local taperZ = tonumber( param.PrimTAPERZ ) or 0
-
-        local tipScale
-        if taperX ~= 0 or taperZ ~= 0 then
-            tipScale = Vector( 1 - taperX, 1, 1 - taperZ )
-        end
-
-        local sweep = tonumber( param.PrimSWEEP ) or 0
-        if sweep == 0 then sweep = nil else
-            -- angle * ( wingspan + chord x )
-            sweep = math.sin( math.rad( sweep ) ) * span --( span + ( chord * ( 1 - taperX ) ) )
-        end
-
-        local dihedral = tonumber( param.PrimDIHED ) or 0
-        if dihedral == 0 then dihedral = nil else
-            -- angle * ( wingspan + chord z )
-            dihedral = math.sin( math.rad( dihedral ) ) * span -- ( span + ( chord * ( 1 - taperZ ) ) )
-        end
-
-        --[[
-
-            in order to remain convex, each loft section needs to be broken down into convex shapes
-
-            probably not worth it
-
-        ]]
+        -- mesh
+        local pointCutoff = math.ceil( samples * 0.25 )
+        local pointCount
+        if #rV == #tV then pointCount = #rV else return end
 
         local verts = {}
         if CLIENT then faces = {} end
 
-        local loopn = loftCount - 1
-        for i = 0, loopn do
-            local loftY = ( i / loftCount ) * span
+        local bits = tonumber( param.PrimSURFOPTS ) or 0
+        local enableClip = bit.band( bits, 1 ) == 1
+        local enableClipInverse = enableClip and bit.band( bits, 2 ) == 2
 
-            local ibuffer = i * airfoilPointsCount
-            local isnext = i < loopn
+        local loftCount
+        if enableClip then loftCount = 4 else loftCount = 2 end
 
-            for j = 1, airfoilPointsCount do
-                local point = Vector( airfoilPoints[j] )
+        -- lookups for clipping vertices from physics/faces
+        -- not at all a proper way to do this but works, is easy to invert, and is easy to understand
 
-                if not isnext then
-                    if tipScale then
-                        point:Mul( tipScale )
-                    end
+        local skipVerti = {
+            [loftCount - 1] = true
+        }
 
-                    if dihedral then
-                        point.z = point.z + dihedral
-                    end
+        local skipVertj = {
+            [pointCount] = true,
+            [samples] = true,
+        }
 
-                    if sweep then
-                        point.x = point.x + sweep
-                    end
-                end
-
-                point.y = point.y + loftY
-
-                local index = #verts + 1
-                verts[index] = point
-
-                if faces then
-                    if j < airfoilPointsCount and j ~= airfoilPointsCount * 0.5 then
-                        if isnext then
-                            local v1 = j + ibuffer
-                            local v2 = j + airfoilPointsCount + ibuffer
-                            local v3 = v2 + 1
-                            local v4 = v1 + 1
-                            faces[#faces + 1] = { v4, v3, v2, v1 }
-                        end
-
-                        local v1 = j + ibuffer
-                        local v2 = v1 + 1
-                        local v3 = 2 * ibuffer + airfoilPointsCount - v1
-                        local v4 = v3 + 1
-
-                        if i == 0 then
-                            faces[#faces + 1] = { v4, v3, v2, v1 }
-                        else
-                            faces[#faces + 1] = { v1, v2, v3, v4 }
-                        end
-                    end
-                end
-            end
-
+        local skipVertk = {
+            [1] = {},
+        }
+        for i = 1, pointCutoff do
+            skipVertk[1][i] = true
+            skipVertk[1][pointCount - i] = true
         end
 
-        if physics then
-            convexes = { verts }
+        -- generate mesh
+
+        for i = 0, loftCount - 1 do
+            local d = i / ( loftCount - 1 )
+            local k = i * pointCount
+
+            for j = 1, pointCount do
+                local p0 = rV[j]
+                local p1 = tV[j]
+
+                verts[#verts + 1] = p0 + ( p1 - p0 ) * d -- interpolate the two airfoils
+
+                local v1 = k + j
+                local v2 = k + j + 1
+                local v3 = k + j + pointCount + 1
+                local v4 = k + j + pointCount
+
+                if enableClip then
+                    local exit = skipVertk[i] and skipVertk[i][j]
+
+                    if enableClipInverse then
+                        if not exit then
+                            goto SKIP
+                        end
+                    else
+                        if exit or skipVerti[i] or skipVertj[j] then
+                            goto SKIP
+                        end
+                    end
+                else
+                    if skipVerti[i] or skipVertj[j] then
+                        goto SKIP
+                    end
+                end
+
+                if faces then
+                    faces[#faces + 1] = { v1, v2, v3, v4 }
+                end
+
+                ::SKIP::
+            end
         end
 
         return { verts = verts, faces = faces, convexes = convexes }
     end
 
 
-    local spawnlist
-    if CLIENT then
-        spawnlist = {
-            { category = "physics", entity = "primitive_airfoil", title = "airfoil", command = "" },
-        }
 
-        local callbacks = {
-            EDITOR_OPEN = function ( self, editor, name, val )
-                for k, cat in pairs( editor.categories ) do
-                    if k == "debug" or k == "mesh" or k == "model" then cat:ExpandRecurse( false ) else cat:ExpandRecurse( true ) end
-                end
-            end,
-        }
 
-        function class:EditorCallback( editor, name, val )
-            if callbacks[name] then callbacks[name]( self, editor, name, val ) end
-        end
-    end
 
-    Primitive.funcs.registerClass( "airfoil", class, spawnlist )
+
 
 end
-
 
 
 

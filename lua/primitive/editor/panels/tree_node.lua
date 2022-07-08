@@ -2,7 +2,7 @@
 local PANEL = {}
 
 AccessorFunc( PANEL, "m_pRowHighlight", "RowHighlight" )
-
+AccessorFunc( PANEL, "m_pRowCategory", "RowCategory" )
 
 local function expand( self )
     local self = self:GetParent()

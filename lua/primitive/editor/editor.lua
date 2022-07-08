@@ -163,8 +163,21 @@ end
 
 function PANEL:CreateRow( editName, editData )
     local category = self:CreateCategory( editData.category or "GENERAL" )
+    local node = category
 
-    local row = category:AddNode( editData.title or editName )
+    if editData.subcategory then
+        if not category.subcategories then
+             category.subcategories = {}
+        end
+        if not category.subcategories[editData.subcategory] then
+            category.subcategories[editData.subcategory] = category:AddNode( editData.subcategory )
+        end
+
+        node = category.subcategories[editData.subcategory]
+    end
+
+    local row = node:AddNode( editData.title or editName )
+    row:SetRowCategory( category )
 
     category.RowNodes[editName] = row
 
