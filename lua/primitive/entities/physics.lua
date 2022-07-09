@@ -165,7 +165,7 @@ do
         local xoff = math.sin( math.rad( param.PrimSWEEP * 2 ) ) * ( yoff + param.PrimCHORDR )
         local zoff = math.sin( math.rad( param.PrimDIHEDRAL * 2 ) ) * ( yoff + param.PrimCHORDR )
 
-        local samples = SERVER and 5 or 50
+        local pointSamples = 25
         local spacing = interp[param.PrimINTERP] or interp.linear
 
         local M = math.Clamp( tonumber( param.PrimAFM ) or 0, 0, 9.5 )
@@ -175,51 +175,56 @@ do
         local rC = tonumber( param.PrimCHORDR ) or 1
         local tC = tonumber( param.PrimCHORDT ) or 1
 
-        local rV = NACA4DIGIT( spacing, samples, rC, M, P, rT )
-        local tV = NACA4DIGIT( spacing, samples, tC, M, P, tT, xoff, yoff, zoff )
+        local rV = NACA4DIGIT( spacing, pointSamples, rC, M, P, rT )
+        local tV = NACA4DIGIT( spacing, pointSamples, tC, M, P, tT, xoff, yoff, zoff )
 
         -- mesh
-        local pointCutoff = math.ceil( samples * 0.25 )
-        local pointCount
-        if #rV == #tV then pointCount = #rV else return end
+        local surfaceCutoffIndex = math.ceil( pointSamples * 0.25 )
+        local loftPointCount
+        if #rV == #tV then loftPointCount = #rV else return end
 
         local verts = {}
         if CLIENT then faces = {} end
+        if physics then convexes = {} end
 
         local bits = tonumber( param.PrimSURFOPTS ) or 0
         local enableClip = bit.band( bits, 1 ) == 1
         local enableClipInverse = enableClip and bit.band( bits, 2 ) == 2
 
-        local loftCount
-        if enableClip then loftCount = 4 else loftCount = 2 end
+        local loftLoopCount
+        if enableClip then loftLoopCount = 4 else loftLoopCount = 2 end
 
         -- lookups for clipping vertices from physics/faces
-        -- not at all a proper way to do this but works, is easy to invert, and is easy to understand
+        -- not at all a proper way to do this but works and is easy to invert
 
-        local skipVerti = {
-            [loftCount - 1] = true
+        local clipi = {
+            [loftLoopCount - 1] = true
         }
 
-        local skipVertj = {
-            [pointCount] = true,
-            [samples] = true,
+        local clipj = {
+            [loftPointCount] = true,
+            [pointSamples] = true,
         }
 
-        local skipVertk = {
+        local clipk = {
             [1] = {},
         }
-        for i = 1, pointCutoff do
-            skipVertk[1][i] = true
-            skipVertk[1][pointCount - i] = true
+        for i = 1, surfaceCutoffIndex do
+            clipk[1][i] = true
+            clipk[1][loftPointCount - i] = true
         end
 
-        -- generate mesh
+        for i = 0, loftLoopCount - 1 do
+            local d = i / ( loftLoopCount - 1 )
+            local k = i * loftPointCount
 
-        for i = 0, loftCount - 1 do
-            local d = i / ( loftCount - 1 )
-            local k = i * pointCount
+            local hull
+            if convexes and enableClip and d < 1 then
+                hull = {}
+                convexes[#convexes + 1] = hull
+            end
 
-            for j = 1, pointCount do
+            for j = 1, loftPointCount do
                 local p0 = rV[j]
                 local p1 = tV[j]
 
@@ -227,23 +232,54 @@ do
 
                 local v1 = k + j
                 local v2 = k + j + 1
-                local v3 = k + j + pointCount + 1
-                local v4 = k + j + pointCount
+                local v3 = k + j + loftPointCount + 1
+                local v4 = k + j + loftPointCount
 
                 if enableClip then
-                    local exit = skipVertk[i] and skipVertk[i][j]
+                    local exit = clipk[i] and clipk[i][j]
 
                     if enableClipInverse then
                         if not exit then
                             goto SKIP
                         end
+
+                        if faces then -- instead of all this horse shit why not close the entire face at each loft and cutoff?
+                            -- side caps
+                            local a = k - j + loftPointCount
+                            local b = a + 1
+                            faces[#faces + 1] = { b, a, v2, v1 }
+                            faces[#faces + 1] = { a + loftPointCount, b + loftPointCount, v4, v3 }
+                        end
                     else
-                        if exit or skipVerti[i] or skipVertj[j] then
+                        if exit or clipi[i] or clipj[j] then
+                            if exit and j <= surfaceCutoffIndex then
+                                if faces then
+                                    -- side caps
+                                    local a = k - j + loftPointCount
+                                    local b = a + 1
+                                    faces[#faces + 1] = { v1, v2, a, b }
+                                    faces[#faces + 1] = { v3, v4, b + loftPointCount, a + loftPointCount }
+
+                                    if j == surfaceCutoffIndex then
+
+                                        local a = k + 2 * loftPointCount - surfaceCutoffIndex
+                                        local b = k + loftPointCount - surfaceCutoffIndex
+
+                                        faces[#faces + 1] = { v2, v3, a, b }
+
+                                        if hull then
+                                            hull[#hull + 1] = a
+                                            hull[#hull + 1] = b
+                                        end
+                                    end
+                                end
+                            end
+
                             goto SKIP
                         end
                     end
                 else
-                    if skipVerti[i] or skipVertj[j] then
+                    if clipi[i] or clipj[j] then
                         goto SKIP
                     end
                 end
@@ -252,18 +288,31 @@ do
                     faces[#faces + 1] = { v1, v2, v3, v4 }
                 end
 
+                if hull then
+                    hull[#hull + 1] = v1
+                    hull[#hull + 1] = v4
+                end
+
                 ::SKIP::
+            end
+        end
+
+        if convexes then
+            if not enableClip then
+                convexes = { verts }
+            else
+                for i = 1, #convexes do
+                    local hull = convexes[i]
+                    for j = 1, #hull do
+                        local k = hull[j]
+                        hull[j] = verts[k]
+                    end
+                end
             end
         end
 
         return { verts = verts, faces = faces, convexes = convexes }
     end
-
-
-
-
-
-
 
 end
 
