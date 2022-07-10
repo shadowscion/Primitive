@@ -598,6 +598,18 @@ do
         register = register,
     }
 
+    register( "plane",
+    {
+        Vector( -0.5, 0.5, 0 ),
+        Vector( -0.5, -0.5, 0 ),
+        Vector( 0.5, -0.5, 0 ),
+        Vector( 0.5, 0.5, 0 ),
+    },
+    {
+        { 1, 2, 3, 4 },
+
+    } )
+
     register( "cube",
     {
         Vector( -0.5, 0.5, -0.5 ),

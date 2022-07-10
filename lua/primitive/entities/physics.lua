@@ -4,14 +4,15 @@ do
     local class = {}
 
 
-    local construct = { data = { name = "airfoil" } }
+    local construct = { data = { canThread = true, name = "airfoil" } }
     function class:PrimitiveGetConstruct()
         local keys = self:PrimitiveGetKeys()
         return Primitive.construct.generate( construct, "airfoil", keys, true, keys.PrimMESHPHYS )
     end
 
-
     function class:PrimitiveSetupDataTables()
+
+
 
         local helpDST = "Alters the density of vertices toward the leading and trailing edges"
         local helpAFM = "'M' term - the maximum camber as a percentage of the chord"
@@ -20,22 +21,26 @@ do
         local helpCHORD = "The distance between the leading and trailing edges"
 
         local category = "airfoil"
-        self:PrimitiveVar( "PrimINTERP", "String", { category = category, title = "point distribution", panel = "combo", values = { linear = "linear", cosine = "cosine", quadratic = "quadratic" }, help = helpDST }, true )
+        self:PrimitiveVar( "PrimAFINTERP", "String", { category = category, title = "point distribution", panel = "combo", values = { linear = "linear", cosine = "cosine", quadratic = "quadratic" }, help = helpDST }, true )
         self:PrimitiveVar( "PrimAFM", "Float", { category = category, title = "max camber", panel = "float", min = 0, max = 9.5, help = helpAFM }, true )
         self:PrimitiveVar( "PrimAFP", "Float", { category = category, title = "max camber pos", panel = "float", min = 0, max = 90, help = helpAFP }, true )
-        self:PrimitiveVar( "PrimAFTR", "Float", { category = category, title = "thickness (root)", panel = "float", min = 1, max = 40, help = helpAFT }, true )
-        self:PrimitiveVar( "PrimAFTT", "Float", { category = category, title = "thickness (tip)", panel = "float", min = 1, max = 40, help = helpAFT }, true )
-        self:PrimitiveVar( "PrimCHORDR", "Float", { category = category, title = "chord (root)", panel = "float", min = 1, max = 2000, help = helpCHORD }, true )
-        self:PrimitiveVar( "PrimCHORDT", "Float", { category = category, title = "chord (tip)", panel = "float", min = 1, max = 2000, help = helpCHORD }, true )
+        self:PrimitiveVar( "PrimAFT", "Float", { category = category, title = "max thickness", panel = "float", min = 1, max = 40, help = helpAFT }, true )
+        self:PrimitiveVar( "PrimAFOPEN", "Bool", { category = category, title = "open trailing edge", panel = "boolean" }, true )
 
         local category = "wing"
+        self:PrimitiveVar( "PrimCHORDR", "Float", { category = category, title = "chord (root)", panel = "float", min = 1, max = 2000, help = helpCHORD }, true )
+        self:PrimitiveVar( "PrimCHORDT", "Float", { category = category, title = "chord (tip)", panel = "float", min = 1, max = 2000, help = helpCHORD }, true )
         self:PrimitiveVar( "PrimSPAN", "Float", { category = category, title = "span", panel = "float", min = 1, max = 2000 }, true )
         self:PrimitiveVar( "PrimSWEEP", "Float", { category = category, title = "sweep angle", panel = "float", min = -45, max = 45 }, true )
         self:PrimitiveVar( "PrimDIHEDRAL", "Float", { category = category, title = "dihedral angle", panel = "float", min = -45, max = 45 }, true )
-
+         /*
         local category = "control surface"
+        self:PrimitiveVar( "PrimCSOPT", "Int", { category = category, title = "options", panel = "bitfield", lbl = { "enabled", "inverse clip" } }, true )
 
-        self:PrimitiveVar( "PrimSURFOPTS", "Int", { category = category, title = "options", panel = "bitfield", lbl = { "enabled", "inverse clip" } }, true )
+        self:PrimitiveVar( "PrimCSYPOS", "Float", { category = category, title = "y offset", panel = "float", min = 0, max = 1 }, true )
+        self:PrimitiveVar( "PrimCSYLEN", "Float", { category = category, title = "y length", panel = "float", min = 0, max = 1 }, true )
+        self:PrimitiveVar( "PrimCSXLEN", "Float", { category = category, title = "x length", panel = "float", min = 0, max = 0.5 }, true )
+        */
 
     end
 
@@ -45,16 +50,15 @@ do
             duplicator.StoreEntityModifier( self, "mass", { Mass = 100 } )
         end
 
-        self:SetPrimINTERP( "cosine" )
+        self:SetPrimAFINTERP( "cosine" )
         self:SetPrimAFM( 2 )
         self:SetPrimAFP( 40 )
-        self:SetPrimAFTR( 12 )
-        self:SetPrimAFTT( 12 )
-        self:SetPrimCHORDR( 100 )
+        self:SetPrimAFT( 12 )
+        self:SetPrimCHORDR( 200 )
         self:SetPrimCHORDT( 100 )
-
-        self:SetPrimSPAN( 300 )
-        self:SetPrimSWEEP( 0 )
+        self:SetPrimSPAN( 150 )
+        self:SetPrimSWEEP( -18 )
+        self:SetPrimDIHEDRAL( -2 )
 
         self:SetPrimDEBUG( bit.bor( 1, 2 ) )
         self:SetPrimMESHSMOOTH( 60 )
@@ -83,229 +87,165 @@ do
 
     Primitive.funcs.registerClass( "airfoil", class, spawnlist )
 
+    local function NACA4DIGIT( distr, points, chord, M, P, T, open, ox, oy, oz )
 
-    local function NACA4DIGIT( distr, samples, chord, M, P, T, xoff, yoff, zoff )
-        --[[
+        ox = ox or 0
+        oy = oy or 0
+        oz = oz or 0
 
-            terms and coefficients from https://en.wikipedia.org/wiki/NACA_airfoil#Equation_for_a_symmetrical_4-digit_NACA_airfoil
+        M = M * 0.01
+        P = P * 0.01 -- should be *0.1 in real MPTT notation, but our value is in 100ths for interface clarity
+        T = T * 0.01
 
-            notation = mpxx 2412
+        --local open, a4 = true
+        local a4
+        if open then a4 = 0.1015 else a4 = 0.1036 end
 
-            M = m / 100
-            P = p / 10
-            T = xx / 100
+        local upper, lower = {}, {}
 
-            -0.1015   open edge a4
-            -0.1036   closed edge a4
+        for i = 0, points do
+            local x = distr( i, points )
+            local t = ( T / 0.2 ) * ( ( 0.2969 * math.sqrt( x ) ) - ( 0.1260 * x ) - ( 0.3516 * ( x ^ 2 ) ) + ( 0.2843 * ( x ^ 3 ) ) - ( a4 * ( x ^ 4 ) ) )
 
-        ]]
+            local k, y
 
-        local xoff = xoff or 0
-        local yoff = yoff or 0
-        local zoff = zoff or 0
-
-        local M = M / 100
-        local P = P / 10
-        local T = T / 100
-
-        local a0 = 0.2969
-        local a1 = -0.1260
-        local a2 = -0.3516
-        local a3 = 0.2843
-        local a4 = -0.1036
-
-        local samples = samples - 1
-        local buffer = samples * 2 + 2
-        local points = {}
-
-        for i = 0, samples do
-            local x = distr( i, samples )
-            local yc, dyc_dx
-
-            -- https://en.wikipedia.org/wiki/NACA_airfoil#Equation_for_a_cambered_4-digit_NACA_airfoil
-            -- oof
-            if x >= 0 and x < P then
-                yc = ( M / P ^ 2 ) * ( ( 2 * P * x ) - x ^ 2 )
-                dyc_dx = ( ( 2 * M ) / ( P ^ 2 ) ) * ( P - x )
-
-            elseif x >= P and x <= 1 then
-                yc = ( M / ( 1 - P ) ^ 2 ) * ( 1 - ( 2 * P ) + ( 2 * P * x ) - ( x ^ 2 ) )
-                dyc_dx = ( ( 2 * M ) / ( ( 1 - P ) ^ 2 ) ) * ( P - x )
-
+            if x > P then
+                k = M / ( ( 1 - P ) ^ 2 )
+                y = k * ( ( 1 - ( 2 * P ) ) + ( 2 * P * x ) - ( x ^ 2 ) )
             end
 
-            local theta = math.atan( dyc_dx )
-            local yt = 5 * T * ( a0 * math.sqrt( x ) + a1 * x + a2 * x ^ 2 + a3 * x ^ 3 + a4 * x ^ 4 )
+            if x <= P then
+                if P == 0 then k = 0 else k = M / ( P ^ 2 ) end -- divide by zero!!!
+                y = k * ( ( 2 * P * x ) - ( x ^ 2 ) )
+            end
 
-            -- upper
-            local ux = x - yt * math.sin( theta )
-            local uy = yc + yt * math.cos( theta )
+            local a = math.atan( k * ( ( 2 * P ) - ( 2 * x ) ) )
 
-            -- lower
-            local lx = x + yt * math.sin( theta )
-            local ly = yc - yt * math.cos( theta )
+            local xu = x - ( math.sin( a ) * t )
+            local yu = y + ( math.cos( a ) * t )
+            local xl = x + ( math.sin( a ) * t )
+            local yl = y - ( math.cos( a ) * t )
 
-            points[i + 1] = Vector( -ux * chord + xoff, yoff, uy * chord + zoff + 0 )
-            points[buffer - i] = Vector( -lx * chord + xoff, yoff, ly * chord + zoff - 0 )
+            upper[#upper + 1] = Vector( -xu * chord + ox, oy, yu * chord + oz )
+            lower[#lower + 1] = Vector( -xl * chord + ox, oy, yl * chord + oz )
         end
 
-        return points
+        return upper, lower
+
     end
 
+
     local interp = {}
-    interp.linear = function( lhs, rhs ) return 1 - lhs / rhs end
-    interp.cosine = function( lhs, rhs ) return 0.5 * ( math.cos( ( lhs / rhs ) * math.pi ) + 1 ) end
-    interp.quadratic = function( lhs, rhs ) return ( 1 - lhs / rhs ) ^ 2 end
+    interp.linear = function( lhs, rhs ) return lhs / rhs end
+    interp.cosine = function( lhs, rhs ) return 1 - 0.5 * ( math.cos( ( lhs / rhs ) * math.pi ) + 1 ) end
+    interp.quadratic = function( lhs, rhs ) return ( lhs / rhs ) ^ 2 end
+
+    local function rayPlane( l1, dir, pos, normal )
+        local a = normal:Dot( dir )
+
+        if a < 0 then
+            local d = normal:Dot( pos - l1 )
+            if d < 0 then
+                return l1 + dir * ( d / a )
+            end
+        elseif a == 0 then
+            if normal:Dot( pos - l1 ) == 0 then
+                return l1
+            end
+        end
+
+        return false
+    end
 
     construct.factory = function( param, data, thread, physics )
         local verts, faces, convexes
 
-        -- parameters
-        local yoff = param.PrimSPAN
-        local xoff = math.sin( math.rad( param.PrimSWEEP * 2 ) ) * ( yoff + param.PrimCHORDR )
-        local zoff = math.sin( math.rad( param.PrimDIHEDRAL * 2 ) ) * ( yoff + param.PrimCHORDR )
+        local m = math.Clamp( tonumber( param.PrimAFM ) or 0, 0, 9.5 )
+        local p = math.Clamp( tonumber( param.PrimAFP ) or 0, 0, 90 )
+        local t = math.Clamp( tonumber( param.PrimAFT ) or 0, 1, 40 )
 
-        local pointSamples = 25
-        local spacing = interp[param.PrimINTERP] or interp.linear
+        local c0 = tonumber( param.PrimCHORDR ) or 1
+        local c1 = tonumber( param.PrimCHORDT ) or 1
 
-        local M = math.Clamp( tonumber( param.PrimAFM ) or 0, 0, 9.5 )
-        local P = math.Clamp( tonumber( param.PrimAFP ) or 0, 0, 90 )
-        local rT = math.Clamp( tonumber( param.PrimAFTR ) or 0, 1, 40 )
-        local tT = math.Clamp( tonumber( param.PrimAFTT ) or 0, 1, 40 )
-        local rC = tonumber( param.PrimCHORDR ) or 1
-        local tC = tonumber( param.PrimCHORDT ) or 1
+        local open = tobool( param.PrimAFOPEN )
 
-        local rV = NACA4DIGIT( spacing, pointSamples, rC, M, P, rT )
-        local tV = NACA4DIGIT( spacing, pointSamples, tC, M, P, tT, xoff, yoff, zoff )
+        local span = tonumber( param.PrimSPAN ) or 1
+        local sweep = math.sin( math.rad( ( tonumber( param.PrimSWEEP ) or 0 ) * 1 ) ) * ( span + c0)
+        local dihedral = math.sin( math.rad( ( tonumber( param.PrimDIHEDRAL ) or 0 ) * 1 ) ) * ( span + c0 )
 
-        -- mesh
-        local surfaceCutoffIndex = math.ceil( pointSamples * 0.25 )
-        local loftPointCount
-        if #rV == #tV then loftPointCount = #rV else return end
+        local points = 25
+
+        local a0u, a0l = NACA4DIGIT( interp[param.PrimAFINTERP] or interp.linear, points, c0, m, p, t, open )
+        local a1u, a1l = NACA4DIGIT( interp[param.PrimAFINTERP] or interp.linear, points, c1, m, p, t, open, sweep, span, dihedral )
+
+        local pcount = #a0u         -- point count
+        local tcount = pcount * 2   -- upper + lower point count
+        local scount = 6            -- number of sections
 
         local verts = {}
         if CLIENT then faces = {} end
-        if physics then convexes = {} end
 
-        local bits = tonumber( param.PrimSURFOPTS ) or 0
-        local enableClip = bit.band( bits, 1 ) == 1
-        local enableClipInverse = enableClip and bit.band( bits, 2 ) == 2
+        for i = 0, scount - 1 do
+            local d = i / ( scount - 1 )
 
-        local loftLoopCount
-        if enableClip then loftLoopCount = 4 else loftLoopCount = 2 end
+            for j = 1, pcount do
+                local p0u = a0u[j]
+                local p1u = a1u[j]
 
-        -- lookups for clipping vertices from physics/faces
-        -- not at all a proper way to do this but works and is easy to invert
+                local p0l = a0l[j]
+                local p1l = a1l[j]
 
-        local clipi = {
-            [loftLoopCount - 1] = true
-        }
+                local pu = ( 1 - d ) * p0u + d * p1u
+                local pl = ( 1 - d ) * p0l + d * p1l
 
-        local clipj = {
-            [loftPointCount] = true,
-            [pointSamples] = true,
-        }
-
-        local clipk = {
-            [1] = {},
-        }
-        for i = 1, surfaceCutoffIndex do
-            clipk[1][i] = true
-            clipk[1][loftPointCount - i] = true
-        end
-
-        for i = 0, loftLoopCount - 1 do
-            local d = i / ( loftLoopCount - 1 )
-            local k = i * loftPointCount
-
-            local hull
-            if convexes and enableClip and d < 1 then
-                hull = {}
-                convexes[#convexes + 1] = hull
-            end
-
-            for j = 1, loftPointCount do
-                local p0 = rV[j]
-                local p1 = tV[j]
-
-                verts[#verts + 1] = p0 + ( p1 - p0 ) * d -- interpolate the two airfoils
-
-                local v1 = k + j
-                local v2 = k + j + 1
-                local v3 = k + j + loftPointCount + 1
-                local v4 = k + j + loftPointCount
-
-                if enableClip then
-                    local exit = clipk[i] and clipk[i][j]
-
-                    if enableClipInverse then
-                        if not exit then
-                            goto SKIP
-                        end
-
-                        if faces then -- instead of all this horse shit why not close the entire face at each loft and cutoff?
-                            -- side caps
-                            local a = k - j + loftPointCount
-                            local b = a + 1
-                            faces[#faces + 1] = { b, a, v2, v1 }
-                            faces[#faces + 1] = { a + loftPointCount, b + loftPointCount, v4, v3 }
-                        end
-                    else
-                        if exit or clipi[i] or clipj[j] then
-                            if exit and j <= surfaceCutoffIndex then
-                                if faces then
-                                    -- side caps
-                                    local a = k - j + loftPointCount
-                                    local b = a + 1
-                                    faces[#faces + 1] = { v1, v2, a, b }
-                                    faces[#faces + 1] = { v3, v4, b + loftPointCount, a + loftPointCount }
-
-                                    if j == surfaceCutoffIndex then
-
-                                        local a = k + 2 * loftPointCount - surfaceCutoffIndex
-                                        local b = k + loftPointCount - surfaceCutoffIndex
-
-                                        faces[#faces + 1] = { v2, v3, a, b }
-
-                                        if hull then
-                                            hull[#hull + 1] = a
-                                            hull[#hull + 1] = b
-                                        end
-                                    end
-                                end
-                            end
-
-                            goto SKIP
-                        end
-                    end
-                else
-                    if clipi[i] or clipj[j] then
-                        goto SKIP
-                    end
-                end
+                local n = #verts
+                verts[n + 1] = pu
+                verts[n + 2] = pl
 
                 if faces then
-                    faces[#faces + 1] = { v1, v2, v3, v4 }
-                end
+                    if j < pcount then
+                        -- horizontal
+                        if i < scount - 1 then
+                            faces[#faces + 1] = { -- upper
+                                n + 1 + tcount,
+                                n + 3 + tcount,
+                                n + 3,
+                                n + 1,
+                            }
+                            faces[#faces + 1] = { -- lower
+                                n + 2,
+                                n + 4,
+                                n + 4 + tcount,
+                                n + 2 + tcount,
+                            }
+                        end
 
-                if hull then
-                    hull[#hull + 1] = v1
-                    hull[#hull + 1] = v4
-                end
+                        -- endcaps
+                        if i == 0 then
+                            faces[#faces + 1] = { -- right
+                                n + 1,
+                                n + 3,
+                                n + 4,
+                                n + 2,
+                            }
+                        elseif i == scount - 1 then
+                            faces[#faces + 1] = { -- left
+                                n + 2,
+                                n + 4,
+                                n + 3,
+                                n + 1,
+                            }
+                        end
 
-                ::SKIP::
-            end
-        end
-
-        if convexes then
-            if not enableClip then
-                convexes = { verts }
-            else
-                for i = 1, #convexes do
-                    local hull = convexes[i]
-                    for j = 1, #hull do
-                        local k = hull[j]
-                        hull[j] = verts[k]
+                    else
+                        if open and i < scount - 1 then
+                            faces[#faces + 1] = {
+                                n + 1 + tcount,
+                                n + 2 + tcount,
+                                n + 2,
+                                n + 1,
+                            }
+                        end
                     end
                 end
             end
@@ -313,10 +253,7 @@ do
 
         return { verts = verts, faces = faces, convexes = convexes }
     end
-
 end
-
-
 
 
 do
