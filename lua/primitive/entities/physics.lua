@@ -1,10 +1,17 @@
 
+
+if true then return end
+
+
+
+local math = math
+
 do
 
     local class = {}
 
 
-    local construct = { data = { canThread = true, name = "airfoil" } }
+    local construct = { data = { canThread = false, name = "airfoil" } }
     function class:PrimitiveGetConstruct()
         local keys = self:PrimitiveGetKeys()
         return Primitive.construct.generate( construct, "airfoil", keys, true, keys.PrimMESHPHYS )
@@ -33,14 +40,13 @@ do
         self:PrimitiveVar( "PrimSPAN", "Float", { category = category, title = "span", panel = "float", min = 1, max = 2000 }, true )
         self:PrimitiveVar( "PrimSWEEP", "Float", { category = category, title = "sweep angle", panel = "float", min = -45, max = 45 }, true )
         self:PrimitiveVar( "PrimDIHEDRAL", "Float", { category = category, title = "dihedral angle", panel = "float", min = -45, max = 45 }, true )
-         /*
+
         local category = "control surface"
         self:PrimitiveVar( "PrimCSOPT", "Int", { category = category, title = "options", panel = "bitfield", lbl = { "enabled", "inverse clip" } }, true )
 
         self:PrimitiveVar( "PrimCSYPOS", "Float", { category = category, title = "y offset", panel = "float", min = 0, max = 1 }, true )
         self:PrimitiveVar( "PrimCSYLEN", "Float", { category = category, title = "y length", panel = "float", min = 0, max = 1 }, true )
         self:PrimitiveVar( "PrimCSXLEN", "Float", { category = category, title = "x length", panel = "float", min = 0, max = 0.5 }, true )
-        */
 
     end
 
@@ -88,7 +94,6 @@ do
     Primitive.funcs.registerClass( "airfoil", class, spawnlist )
 
     local function NACA4DIGIT( distr, points, chord, M, P, T, open, ox, oy, oz )
-
         ox = ox or 0
         oy = oy or 0
         oz = oz or 0
@@ -126,12 +131,11 @@ do
             local xl = x + ( math.sin( a ) * t )
             local yl = y - ( math.cos( a ) * t )
 
-            upper[#upper + 1] = Vector( -xu * chord + ox, oy, yu * chord + oz )
+            upper[#upper + 1] = Vector( -xu * chord + ox, oy, yu * chord + oz + 30 )
             lower[#lower + 1] = Vector( -xl * chord + ox, oy, yl * chord + oz )
         end
 
         return upper, lower
-
     end
 
 
@@ -139,23 +143,6 @@ do
     interp.linear = function( lhs, rhs ) return lhs / rhs end
     interp.cosine = function( lhs, rhs ) return 1 - 0.5 * ( math.cos( ( lhs / rhs ) * math.pi ) + 1 ) end
     interp.quadratic = function( lhs, rhs ) return ( lhs / rhs ) ^ 2 end
-
-    local function rayPlane( l1, dir, pos, normal )
-        local a = normal:Dot( dir )
-
-        if a < 0 then
-            local d = normal:Dot( pos - l1 )
-            if d < 0 then
-                return l1 + dir * ( d / a )
-            end
-        elseif a == 0 then
-            if normal:Dot( pos - l1 ) == 0 then
-                return l1
-            end
-        end
-
-        return false
-    end
 
     construct.factory = function( param, data, thread, physics )
         local verts, faces, convexes
@@ -173,18 +160,95 @@ do
         local sweep = math.sin( math.rad( ( tonumber( param.PrimSWEEP ) or 0 ) * 1 ) ) * ( span + c0)
         local dihedral = math.sin( math.rad( ( tonumber( param.PrimDIHEDRAL ) or 0 ) * 1 ) ) * ( span + c0 )
 
-        local points = 25
+        local points = 10
 
         local a0u, a0l = NACA4DIGIT( interp[param.PrimAFINTERP] or interp.linear, points, c0, m, p, t, open )
         local a1u, a1l = NACA4DIGIT( interp[param.PrimAFINTERP] or interp.linear, points, c1, m, p, t, open, sweep, span, dihedral )
 
         local pcount = #a0u         -- point count
         local tcount = pcount * 2   -- upper + lower point count
-        local scount = 6            -- number of sections
+        local scount = 2            -- number of sections
 
-        local verts = {}
-        if CLIENT then faces = {} end
+        local mapHU0 = 1 + tcount
+        local mapHU1 = 3 + tcount
+        local mapHU2 = 3
+        local mapHU3 = 1
 
+        local mapHL0 = 2
+        local mapHL1 = 4
+        local mapHL2 = 4 + tcount
+        local mapHL3 = 2 + tcount
+
+        local sverts = {}
+        local sfaces = {}
+
+        for i = 0, scount - 1 do
+            local d = i / ( scount - 1 )
+
+            for j = 1, pcount do
+                local p0u = a0u[j]
+                local p1u = a1u[j]
+
+                local p0l = a0l[j]
+                local p1l = a1l[j]
+
+                local pu = ( 1 - d ) * p0u + d * p1u
+                local pl = ( 1 - d ) * p0l + d * p1l
+
+                local n = #sverts
+                sverts[n + 1] = pu
+                sverts[n + 2] = pl
+
+                if j < pcount then
+                    if i < scount - 1 then -- span
+                        sfaces[#sfaces + 1] = { mapHU0 + n, mapHU1 + n, mapHU2 + n }
+                        sfaces[#sfaces + 1] = { mapHU0 + n, mapHU2 + n, mapHU3 + n }
+                        sfaces[#sfaces + 1] = { mapHL0 + n, mapHL1 + n, mapHL2 + n }
+                        sfaces[#sfaces + 1] = { mapHL0 + n, mapHL2 + n, mapHL3 + n }
+                    end
+                    if i == 0 then -- right endcap
+                        sfaces[#sfaces + 1] = { n + 1, n + 3, n + 4 }
+                        sfaces[#sfaces + 1] = { n + 1, n + 4, n + 2 }
+                    elseif i == scount - 1 then -- left endcap
+                        sfaces[#sfaces + 1] = { n + 2, n + 4, n + 3 }
+                        sfaces[#sfaces + 1] = { n + 2, n + 3, n + 1 }
+                    end
+                else
+                    if open and i < scount - 1 then -- trailing edge
+                        sfaces[#sfaces + 1] = { mapHU0 + n, mapHL3 + n, n + 2 }
+                        sfaces[#sfaces + 1] = { mapHU0 + n, n + 2, n + 1 }
+                    end
+                end
+            end
+        end
+
+
+        local clip = { pos = Vector( 0, span * 0.5, 0 ), normal = Angle():Right() }
+
+        local posv, negv = SliceTrisByPlane( sverts, sfaces, clip )
+
+        -- if posv then
+        --     print( "\n\n----------positive---------")
+        --     PrintTable( posv )
+        -- end
+        -- if negv then
+        --     print( "\n\n----------negative---------")
+        --     PrintTable( negv )
+        -- end
+
+       -- faces = {}
+        verts = posv.verts
+
+
+
+      --  local cube = Primitive.construct.simpleton.get( "cube" )
+       -- cube:insert( verts, faces, nil, clip.pos, clip.normal:Angle(), Vector( 1, 100, 100 ) )
+
+        return { verts = verts, faces = faces, convexes = convexes }
+    end
+end
+
+        /*
         for i = 0, scount - 1 do
             local d = i / ( scount - 1 )
 
@@ -201,60 +265,26 @@ do
                 local n = #verts
                 verts[n + 1] = pu
                 verts[n + 2] = pl
-
-                if faces then
-                    if j < pcount then
-                        -- horizontal
-                        if i < scount - 1 then
-                            faces[#faces + 1] = { -- upper
-                                n + 1 + tcount,
-                                n + 3 + tcount,
-                                n + 3,
-                                n + 1,
-                            }
-                            faces[#faces + 1] = { -- lower
-                                n + 2,
-                                n + 4,
-                                n + 4 + tcount,
-                                n + 2 + tcount,
-                            }
-                        end
-
-                        -- endcaps
-                        if i == 0 then
-                            faces[#faces + 1] = { -- right
-                                n + 1,
-                                n + 3,
-                                n + 4,
-                                n + 2,
-                            }
-                        elseif i == scount - 1 then
-                            faces[#faces + 1] = { -- left
-                                n + 2,
-                                n + 4,
-                                n + 3,
-                                n + 1,
-                            }
-                        end
-
-                    else
-                        if open and i < scount - 1 then
-                            faces[#faces + 1] = {
-                                n + 1 + tcount,
-                                n + 2 + tcount,
-                                n + 2,
-                                n + 1,
-                            }
-                        end
-                    end
-                end
             end
         end
 
-        return { verts = verts, faces = faces, convexes = convexes }
-    end
-end
+        do
+            local ypos = param.PrimCSYPOS
+            local ylen = param.PrimCSYLEN
+            local xlen = param.PrimCSXLEN
 
+            local a = ( a0u[#a1u] + a0l[#a1l] ) * 0.5
+            local b = ( a1u[#a1u] + a1l[#a1l] ) * 0.5
+
+            local clipPos = ( 1 - ypos ) * a + ypos * b
+            local clipDir = a - b
+            local clipLen = clipDir:Length()
+            local clipTan = Vector( 1, 0, 0 )
+
+            local x = c0 + ( c1 - c0 ) * math.min(1, ypos + ( c0 > c1 and ylen or 0 ) )
+            clipPos = clipPos + clipTan * x * xlen
+        end
+        */
 
 do
 
