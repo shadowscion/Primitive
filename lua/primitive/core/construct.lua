@@ -12,14 +12,14 @@ local addon = Primitive
 local bit, math, util, table, isvector, WorldToLocal, LocalToWorld, Vector, Angle =
       bit, math, util, table, isvector, WorldToLocal, LocalToWorld, Vector, Angle
 
-local math_sin, math_cos, math_tan, math_asin, math_acos, math_atan, math_atan2, math_rad, math_deg =
-      math.sin, math.cos, math.tan, math.asin, math.acos, math.atan, math.atan2, math.rad, math.deg
+local math_abs, math_sin, math_cos, math_tan, math_asin, math_acos, math_atan, math_atan2, math_rad, math_deg, math_sqrt =
+      math.abs, math.sin, math.cos, math.tan, math.asin, math.acos, math.atan, math.atan2, math.rad, math.deg, math.sqrt
 
 local math_ceil, math_floor, math_round, math_min, math_max, math_clamp =
       math.ceil, math.floor, math.Round, math.min, math.max, math.Clamp
 
-local table_insert, coroutine_yield =
-      table.insert, coroutine.yield
+local next, pairs, table_insert, coroutine_yield =
+      next, pairs, table.insert, coroutine.yield
 
 local vec, ang = Vector(), Angle()
 local vec_cross, vec_dot, vec_add, vec_sub, vec_mul, vec_div, vec_rotate, vec_lengthsqr, vec_normalize, vec_getnormalized, vec_angle =
@@ -425,7 +425,7 @@ do
     --[[
         @FUNCTION: simpleton:Rotate
 
-        @DESCRIPTION: Rotates every vertex by a vector
+        @DESCRIPTION: Rotates every vertex by an angle
 
         @PARAMETERS:
             [angle] a -- the rotation
@@ -539,9 +539,16 @@ do
         end
     end
 
-    local function closeLineLoop( abovePlane, belowPlane, loopCenter, loopPoints )
-        local aA = abovePlane:PushVertex( loopCenter )
-        local bA = belowPlane:PushVertex( loopCenter )
+    local function util_CloseEdgeLoop( abovePlane, belowPlane, loopCenter, loopPoints )
+        local aA
+        if abovePlane then
+            aA = abovePlane:PushVertex( loopCenter )
+        end
+
+        local bA
+        if belowPlane then
+            bA = belowPlane:PushVertex( loopCenter )
+        end
 
         local wrap = { [#loopPoints] = 1 }
 
@@ -549,11 +556,49 @@ do
             local p0 = loopPoints[i]
             local p1 = loopPoints[wrap[i] or i + 1]
 
-            abovePlane:PushTriangle( aA, abovePlane:PushVertex( p0 ), abovePlane:PushVertex( p1 ) )
-            belowPlane:PushTriangle( bA, belowPlane:PushVertex( p1 ), belowPlane:PushVertex( p0 ) )
+            if aA then
+                abovePlane:PushTriangle( aA, abovePlane:PushVertex( p0 ), abovePlane:PushVertex( p1 ) )
+            end
+            if bA then
+                belowPlane:PushTriangle( bA, belowPlane:PushVertex( p1 ), belowPlane:PushVertex( p0 ) )
+            end
         end
     end
 
+    --[[ Given an unordered list of line segments, return a closed boundary
+    local function util_CloseEdgeLoop( lineSegments )
+        local polychain = {}
+
+        -- pop a line segment from the list
+        local prevID, prevAB = next( lineSegments )
+        lineSegments[prevID] = nil
+
+        -- loop until there are no more lineSegments left to check
+        while next( lineSegments ) do
+            local pass
+
+            for nextID, nextAB in pairs( lineSegments ) do
+                -- check some condition between the previous and next segment
+                if nextAB.A == prevAB.B or math_abs( vec_lengthsqr( nextAB.A - prevAB.B ) ) <= 1e-3 then
+                    -- if it passes, add the previous segment start point to the polychain
+                    polychain[#polychain + 1] = Vector( prevAB.A )
+
+                    -- remove the new segment from the original lineSegments list
+                    prevID, prevAB = nextID, nextAB
+                    lineSegments[prevID] = nil
+
+                    -- no need to check the others
+                    pass = true
+                    break
+                end
+            end
+
+            if not pass then return false end -- invalid polygon chain
+        end
+
+        return polychain
+    end
+    ]]
 
     --[[
         @FUNCTION: simpleton:Bisect
@@ -567,7 +612,7 @@ do
             [table] abovePlane simpleton
             [table] belowPlane simpleton
     --]]
-    function meta:Bisect( plane, fill )
+    function meta:Bisect( plane, fillAbove, fillBelow )
         -- Separate original vertices into two tables, determined by
         -- which side of clipping plane they are on.
         -- Store the original index of each vertex in the key table [ original = new ].
@@ -594,25 +639,25 @@ do
         -- Check each edge of each triangle for an intersection with the plane.
         -- All that intersect are split into two smaller triangles.
         local loopCenter = Vector()
-        local loopPoints = {}
+        local loopPoints = ( fillAbove or fillBelow ) and {} or nil
 
         for i = 1, #self.index, 3 do
             local l0, l1 = intersection( self, i, planePos, planeNormal, abovePlane, belowPlane )
 
-            if fill and l0 and l1 then
+            if loopPoints and l0 and l1 then
                 vec_add( loopCenter, l0 )
                 loopPoints[#loopPoints + 1] = l0
             end
         end
 
-        if fill then
+        if loopPoints then
             loopCenter = loopCenter / #loopPoints
 
             table.sort( loopPoints, function( sa, sb )
                 return vec_dot( planeNormal, vec_cross( sa - loopCenter, sb - loopCenter ) ) < 0
             end )
 
-            closeLineLoop( abovePlane, belowPlane, loopCenter, loopPoints )
+            util_CloseEdgeLoop( fillAbove and abovePlane, fillBelow and belowPlane, loopCenter, loopPoints )
         end
 
         abovePlane.key = {}
@@ -625,20 +670,36 @@ do
     if CLIENT then
         local YIELD_THRESHOLD = 30
 
-        local function calcUV( a, b, c, scale )
-            local euler = vec_angle( a.normal )
+        local function calcUV( a, b, c, normal, scale )
+            local nx, ny, nz = math_abs( normal.x ), math_abs( normal.y ), math_abs( normal.z )
+            if nx > ny and nx > nz then
+                local nw = normal.x < 0 and -1 or 1
+                a.u = a.pos.z * nw * scale
+                a.v = a.pos.y * scale
+                b.u = b.pos.z * nw * scale
+                b.v = b.pos.y * scale
+                c.u = c.pos.z * nw * scale
+                c.v = c.pos.y * scale
 
-            local coord = WorldToLocal( a.pos, ang, vec, euler )
-            a.u = coord.y * scale
-            a.v = coord.z * scale
+            elseif ny > nz then
+                local nw = normal.y < 0 and -1 or 1
+                a.u = a.pos.x * scale
+                a.v = a.pos.z * nw * scale
+                b.u = b.pos.x * scale
+                b.v = b.pos.z * nw * scale
+                c.u = c.pos.x * scale
+                c.v = c.pos.z * nw * scale
 
-            local coord = WorldToLocal( b.pos, ang, vec, euler )
-            b.u = coord.y * scale
-            b.v = coord.z * scale
+            else
+                local nw = normal.z < 0 and 1 or -1
+                a.u = a.pos.x * nw * scale
+                a.v = a.pos.y * scale
+                b.u = b.pos.x * nw * scale
+                b.v = b.pos.y * scale
+                c.u = c.pos.x * nw * scale
+                c.v = c.pos.y * scale
 
-            local coord = WorldToLocal( c.pos, ang, vec, euler )
-            c.u = coord.y * scale
-            c.v = coord.z * scale
+            end
         end
 
         local function calcInside( verts, threaded )
@@ -839,6 +900,12 @@ do
                 local p1 = verts[index[i + 2]]
                 local p2 = verts[index[i + 1]]
 
+                if fbounds then
+                    calcBounds( p0, mins, maxs )
+                    calcBounds( p1, mins, maxs )
+                    calcBounds( p2, mins, maxs )
+                end
+
                 local normal = vec_cross( p2 - p0, p1 - p0 )
                 vec_normalize( normal )
 
@@ -846,7 +913,7 @@ do
                 local v1 = { pos = Vector( p1 ), normal = Vector( normal ) }
                 local v2 = { pos = Vector( finvert and p0 or p2 ), normal = Vector( normal ) }
 
-                if uvmap then calcUV( v0, v1, v2, uvmap ) end
+                if uvmap then calcUV( v0, v1, v2, normal, uvmap ) end
 
                 tris[#tris + 1] = v0
                 tris[#tris + 1] = v1
@@ -902,6 +969,17 @@ local function transform( verts, rotate, offset, thread )
             vec_add( verts[i], offset )
         end
     end
+end
+
+local ease = {}
+ease.linear = function( lhs, rhs )
+    return lhs / rhs
+end
+ease.cosine = function( lhs, rhs )
+    return 1 - 0.5 * ( math.cos( ( lhs / rhs ) * math.pi ) + 1 )
+end
+ease.quadratic = function( lhs, rhs )
+    return ( lhs / rhs ) ^ 2
 end
 
 
@@ -1743,8 +1821,6 @@ end )
 
 -- WEDGE
 registerType( "wedge", function( param, data, threaded, physics )
-    local verts, faces, convexes
-
     local dx = ( isvector( param.PrimSIZE ) and param.PrimSIZE[1] or 1 ) * 0.5
     local dy = ( isvector( param.PrimSIZE ) and param.PrimSIZE[2] or 1 ) * 0.5
     local dz = ( isvector( param.PrimSIZE ) and param.PrimSIZE[3] or 1 ) * 0.5
@@ -1802,8 +1878,6 @@ end )
 
 -- WEDGE_CORNER
 registerType( "wedge_corner", function( param, data, threaded, physics )
-    local verts, faces, convexes
-
     local dx = ( isvector( param.PrimSIZE ) and param.PrimSIZE[1] or 1 ) * 0.5
     local dy = ( isvector( param.PrimSIZE ) and param.PrimSIZE[2] or 1 ) * 0.5
     local dz = ( isvector( param.PrimSIZE ) and param.PrimSIZE[3] or 1 ) * 0.5
@@ -1836,13 +1910,340 @@ registerType( "wedge_corner", function( param, data, threaded, physics )
 end )
 
 
+-- AIRFOIL
+local function NACA4DIGIT( distr, points, chord, M, P, T, openEdge, ox, oy, oz )
+    ox = ox or 0
+    oy = oy or 0
+    oz = oz or 0
+
+    M = M * 0.01
+    P = P * 0.01 -- should be *0.1 in real MPTT notation, but our value is in 100ths for interface clarity
+    T = T * 0.01
+
+    local a4
+    if openEdge then a4 = 0.1015 else a4 = 0.1036 end
+
+    local upper, lower = {}, {}
+
+    for i = 0, points do
+        local x = distr( i, points )
+        local t = ( T / 0.2 ) * ( ( 0.2969 * math_sqrt( x ) ) - ( 0.1260 * x ) - ( 0.3516 * ( x ^ 2 ) ) + ( 0.2843 * ( x ^ 3 ) ) - ( a4 * ( x ^ 4 ) ) )
+
+        local k, y
+
+        if x > P then
+            k = M / ( ( 1 - P ) ^ 2 )
+            y = k * ( ( 1 - ( 2 * P ) ) + ( 2 * P * x ) - ( x ^ 2 ) )
+        end
+
+        if x <= P then
+            if P == 0 then k = 0 else k = M / ( P ^ 2 ) end -- divide by zero!!!
+            y = k * ( ( 2 * P * x ) - ( x ^ 2 ) )
+        end
+
+        local a = math.atan( k * ( ( 2 * P ) - ( 2 * x ) ) )
+
+        local xu = x - ( math_sin( a ) * t )
+        local yu = y + ( math_cos( a ) * t )
+        local xl = x + ( math_sin( a ) * t )
+        local yl = y - ( math_cos( a ) * t )
+
+        upper[#upper + 1] = Vector( -xu * chord + ox, oy, yu * chord + oz )
+        lower[#lower + 1] = Vector( -xl * chord + ox, oy, yl * chord + oz )
+    end
+
+    return upper, lower
+end
+
+registerType( "airfoil", function( param, data, threaded, physics )
+    -- parameters
+    local m = math.Clamp( tonumber( param.PrimAFM ) or 0, 0, 9.5 )
+    local p = math.Clamp( tonumber( param.PrimAFP ) or 0, 0, 90 )
+    local t = math.Clamp( tonumber( param.PrimAFT ) or 0, 1, 40 )
+
+    local c0 = tonumber( param.PrimCHORDR ) or 1
+    local c1 = tonumber( param.PrimCHORDT ) or 1
+
+    local open = tobool( param.PrimAFOPEN )
+
+    local span = tonumber( param.PrimSPAN ) or 1
+    local sweep = math.sin( math.rad( ( tonumber( param.PrimSWEEP ) or 0 ) * 1 ) ) * ( span + c0)
+    local dihedral = math.sin( math.rad( ( tonumber( param.PrimDIHEDRAL ) or 0 ) * 1 ) ) * ( span + c0 )
+
+    -- path
+    local points = 25
+
+    local a0u, a0l = NACA4DIGIT( ease[param.PrimAFINTERP] or ease.linear, points, c0, m, p, t, open )
+    local a1u, a1l = NACA4DIGIT( ease[param.PrimAFINTERP] or ease.linear, points, c1, m, p, t, open, sweep, span, dihedral )
+
+    local pcount = #a0u         -- point count
+    local tcount = pcount * 2   -- upper + lower point count
+    local scount = 2            -- number of sections
+
+    local mapHU0 = 1 + tcount
+    local mapHU1 = 3 + tcount
+    local mapHU2 = 3
+    local mapHU3 = 1
+
+    local mapHL0 = 2
+    local mapHL1 = 4
+    local mapHL2 = 4 + tcount
+    local mapHL3 = 2 + tcount
+
+    -- model
+    local model = simpleton.New()
+    local verts = model.verts
+
+    local function insert( d, fill, side )
+        for j = 1, pcount do
+            local p0u = a0u[j]
+            local p1u = a1u[j]
+
+            local p0l = a0l[j]
+            local p1l = a1l[j]
+
+            local pu = ( 1 - d ) * p0u + d * p1u
+            local pl = ( 1 - d ) * p0l + d * p1l
+
+            local n = #verts
+            model:PushVertex( pu )
+            model:PushVertex( pl )
+
+            -- if not fill, push to other model
+
+            if j < pcount then
+                if d < 1 and fill then
+                    model:PushTriangle( mapHU0 + n, mapHU1 + n, mapHU2 + n )
+                    model:PushTriangle( mapHU0 + n, mapHU2 + n, mapHU3 + n )
+                    model:PushTriangle( mapHL0 + n, mapHL1 + n, mapHL2 + n )
+                    model:PushTriangle( mapHL0 + n, mapHL2 + n, mapHL3 + n )
+                end
+                if side == -1 then
+                    model:PushTriangle( n + 1, n + 3, n + 4 )
+                    model:PushTriangle( n + 1, n + 4, n + 2 )
+                elseif side == 1  then
+                    model:PushTriangle( n + 2, n + 4, n + 3 )
+                    model:PushTriangle( n + 2, n + 3, n + 1 )
+                end
+            else
+                if open and d < 1 and fill then -- trailing edge
+                    model:PushTriangle( mapHU0 + n, mapHL3 + n, n + 2 )
+                    model:PushTriangle( mapHU0 + n, n + 2, n + 1 )
+                end
+            end
+        end
+    end
+
+
+    local ypos = param.PrimCSYPOS
+    local ylen = param.PrimCSYLEN
+    local xlen = param.PrimCSXLEN
+
+    if ylen > 0 then
+        local rclipF = ypos
+        local lclipF = math.min( ypos + ylen, 1 )
+
+        local rclipI = math.floor( rclipF * scount )
+        local lclipI = math.floor( lclipF * scount )
+
+        for i = 0, scount - 1 do
+            local d = i / ( scount - 1 )
+
+            if i == rclipI and d > rclipF then insert( rclipF, false, 1 ) end
+            if i == lclipI and d > lclipF then insert( lclipF, true, -1 ) end
+
+            local side
+            if i == 0 then side = -1 elseif i == scount - 1 then side = 1 end
+
+            insert( d, rclipF > 0, rclipF > 0 and lclipF < 1 and side )
+
+            if i == rclipI and d < rclipF then insert( rclipF, false, 1 ) end
+            if i == lclipI and d < lclipF then insert( lclipF, true, -1 ) end
+        end
+    else
+        for i = 0, scount - 1 do
+            local d = i / ( scount - 1 )
+
+            local side
+            if i == 0 then side = -1 elseif i == scount - 1 then side = 1 end
+
+            insert( d, true, side )
+        end
+    end
+
+
+
+    -- local ypos = param.PrimCSYPOS
+    -- local ylen = param.PrimCSYLEN
+    -- local xlen = param.PrimCSXLEN
+
+    -- local a = ( a0u[#a1u] + a0l[#a1l] ) * 0.5
+    -- local b = ( a1u[#a1u] + a1l[#a1l] ) * 0.5
+
+    -- local clipPos = ( 1 - ypos ) * a + ypos * b
+    -- local clipDir = a - b
+    -- local clipLen = clipDir:Length()
+    -- local clipTan = Vector( 1, 0, 0 )
+
+    -- local x = c0 + ( c1 - c0 ) * math.min(1, ypos + ( c0 > c1 and ylen or 0 ) )
+    -- clipPos = clipPos + clipTan * x * xlen
+
+    --[[
+
+        add section counts and ignore vertices to fake left and right clips
+            ignore faces between
+
+        clip x axis from center of y clip, fill face
+
+    ]]
+
+
+    -- local left, right = model:Bisect( { pos = clipPos, normal = Vector( 0, -1, 0 ) }, true, true )
+    -- if left and right then
+    --     model = left
+    -- end
+
+    --[[
+    local leading, trailing, loop = model:Bisect( { pos = clipPos, normal = clipTan }, true, true )
+    model = leading
+    for i = 1, #loop do
+        model:PushVertex( loop[i] - clipTan * 50 )
+    end
+    ]]
+
+    -- if leading and trailing then
+    --     local right, left = trailing:Bisect( { pos = clipPos, normal = clipDir }, true, true )
+    --     model = left
+    -- end
+
+    return model
+end )
 
 
 
 
+            /*
+
+    construct.factory = function( param, data, thread, physics )
+        local verts, faces, convexes
+
+        local m = math.Clamp( tonumber( param.PrimAFM ) or 0, 0, 9.5 )
+        local p = math.Clamp( tonumber( param.PrimAFP ) or 0, 0, 90 )
+        local t = math.Clamp( tonumber( param.PrimAFT ) or 0, 1, 40 )
+
+        local c0 = tonumber( param.PrimCHORDR ) or 1
+        local c1 = tonumber( param.PrimCHORDT ) or 1
+
+        local open = tobool( param.PrimAFOPEN )
+
+        local span = tonumber( param.PrimSPAN ) or 1
+        local sweep = math.sin( math.rad( ( tonumber( param.PrimSWEEP ) or 0 ) * 1 ) ) * ( span + c0)
+        local dihedral = math.sin( math.rad( ( tonumber( param.PrimDIHEDRAL ) or 0 ) * 1 ) ) * ( span + c0 )
+
+        local points = 10
+
+        local a0u, a0l = NACA4DIGIT( interp[param.PrimAFINTERP] or interp.linear, points, c0, m, p, t, open )
+        local a1u, a1l = NACA4DIGIT( interp[param.PrimAFINTERP] or interp.linear, points, c1, m, p, t, open, sweep, span, dihedral )
+
+        local pcount = #a0u         -- point count
+        local tcount = pcount * 2   -- upper + lower point count
+        local scount = 2            -- number of sections
+
+        local mapHU0 = 1 + tcount
+        local mapHU1 = 3 + tcount
+        local mapHU2 = 3
+        local mapHU3 = 1
+
+        local mapHL0 = 2
+        local mapHL1 = 4
+        local mapHL2 = 4 + tcount
+        local mapHL3 = 2 + tcount
+
+        local sverts = {}
+        local sfaces = {}
+
+        for i = 0, scount - 1 do
+            local d = i / ( scount - 1 )
+
+            for j = 1, pcount do
+                local p0u = a0u[j]
+                local p1u = a1u[j]
+
+                local p0l = a0l[j]
+                local p1l = a1l[j]
+
+                local pu = ( 1 - d ) * p0u + d * p1u
+                local pl = ( 1 - d ) * p0l + d * p1l
+
+                local n = #sverts
+                sverts[n + 1] = pu
+                sverts[n + 2] = pl
+
+                if j < pcount then
+                    if i < scount - 1 then -- span
+                        sfaces[#sfaces + 1] = { mapHU0 + n, mapHU1 + n, mapHU2 + n }
+                        sfaces[#sfaces + 1] = { mapHU0 + n, mapHU2 + n, mapHU3 + n }
+                        sfaces[#sfaces + 1] = { mapHL0 + n, mapHL1 + n, mapHL2 + n }
+                        sfaces[#sfaces + 1] = { mapHL0 + n, mapHL2 + n, mapHL3 + n }
+                    end
+                    if i == 0 then -- right endcap
+                        sfaces[#sfaces + 1] = { n + 1, n + 3, n + 4 }
+                        sfaces[#sfaces + 1] = { n + 1, n + 4, n + 2 }
+                    elseif i == scount - 1 then -- left endcap
+                        sfaces[#sfaces + 1] = { n + 2, n + 4, n + 3 }
+                        sfaces[#sfaces + 1] = { n + 2, n + 3, n + 1 }
+                    end
+                else
+                    if open and i < scount - 1 then -- trailing edge
+                        sfaces[#sfaces + 1] = { mapHU0 + n, mapHL3 + n, n + 2 }
+                        sfaces[#sfaces + 1] = { mapHU0 + n, n + 2, n + 1 }
+                    end
+                end
+            end
+        end
 
 
+        local clip = { pos = Vector( 0, span * 0.5, 0 ), normal = Angle():Right() }
 
+        return { verts = verts, faces = faces, convexes = convexes }
+    end
+
+        for i = 0, scount - 1 do
+            local d = i / ( scount - 1 )
+
+            for j = 1, pcount do
+                local p0u = a0u[j]
+                local p1u = a1u[j]
+
+                local p0l = a0l[j]
+                local p1l = a1l[j]
+
+                local pu = ( 1 - d ) * p0u + d * p1u
+                local pl = ( 1 - d ) * p0l + d * p1l
+
+                local n = #verts
+                verts[n + 1] = pu
+                verts[n + 2] = pl
+            end
+        end
+
+        do
+            local ypos = param.PrimCSYPOS
+            local ylen = param.PrimCSYLEN
+            local xlen = param.PrimCSXLEN
+
+            local a = ( a0u[#a1u] + a0l[#a1l] ) * 0.5
+            local b = ( a1u[#a1u] + a1l[#a1l] ) * 0.5
+
+            local clipPos = ( 1 - ypos ) * a + ypos * b
+            local clipDir = a - b
+            local clipLen = clipDir:Length()
+            local clipTan = Vector( 1, 0, 0 )
+
+            local x = c0 + ( c1 - c0 ) * math.min(1, ypos + ( c0 > c1 and ylen or 0 ) )
+            clipPos = clipPos + clipTan * x * xlen
+        end
+        */
 
 
 --[=====[
