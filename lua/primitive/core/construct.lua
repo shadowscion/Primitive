@@ -22,8 +22,8 @@ local next, pairs, table_insert, coroutine_yield =
       next, pairs, table.insert, coroutine.yield
 
 local vec, ang = Vector(), Angle()
-local vec_cross, vec_dot, vec_add, vec_sub, vec_mul, vec_div, vec_rotate, vec_lengthsqr, vec_normalize, vec_getnormalized, vec_angle =
-      vec.Cross, vec.Dot, vec.Add, vec.Sub, vec.Mul, vec.Div, vec.Rotate, vec.LengthSqr, vec.Normalize, vec.GetNormalized, vec.Angle
+local vec_cross, vec_dot, vec_add, vec_sub, vec_mul, vec_div, vec_rotate, vec_length, vec_lengthsqr, vec_normalize, vec_getnormalized, vec_angle =
+      vec.Cross, vec.Dot, vec.Add, vec.Sub, vec.Mul, vec.Div, vec.Rotate, vec.Length, vec.LengthSqr, vec.Normalize, vec.GetNormalized, vec.Angle
 
 local math_pi = math.pi
 local math_tau = math.pi * 2
@@ -976,7 +976,7 @@ ease.linear = function( lhs, rhs )
     return lhs / rhs
 end
 ease.cosine = function( lhs, rhs )
-    return 1 - 0.5 * ( math.cos( ( lhs / rhs ) * math.pi ) + 1 )
+    return 1 - 0.5 * ( math_cos( ( lhs / rhs ) * math_pi ) + 1 )
 end
 ease.quadratic = function( lhs, rhs )
     return ( lhs / rhs ) ^ 2
@@ -1941,7 +1941,7 @@ local function NACA4DIGIT( distr, points, chord, M, P, T, openEdge, ox, oy, oz )
             y = k * ( ( 2 * P * x ) - ( x ^ 2 ) )
         end
 
-        local a = math.atan( k * ( ( 2 * P ) - ( 2 * x ) ) )
+        local a = math_atan( k * ( ( 2 * P ) - ( 2 * x ) ) )
 
         local xu = x - ( math_sin( a ) * t )
         local yu = y + ( math_cos( a ) * t )
@@ -1957,18 +1957,18 @@ end
 
 registerType( "airfoil", function( param, data, threaded, physics )
     -- parameters
-    local m = math.Clamp( tonumber( param.PrimAFM ) or 0, 0, 9.5 )
-    local p = math.Clamp( tonumber( param.PrimAFP ) or 0, 0, 90 )
-    local t = math.Clamp( tonumber( param.PrimAFT ) or 0, 1, 40 )
+    local m = math_clamp( tonumber( param.PrimAFM ) or 0, 0, 9.5 )
+    local p = math_clamp( tonumber( param.PrimAFP ) or 0, 0, 90 )
+    local t = math_clamp( tonumber( param.PrimAFT ) or 0, 1, 40 )
 
-    local c0 = tonumber( param.PrimCHORDR ) or 1
-    local c1 = tonumber( param.PrimCHORDT ) or 1
+    local c0 = math_clamp( tonumber( param.PrimCHORDR ) or 1, 1, 2000 )
+    local c1 = math_clamp( tonumber( param.PrimCHORDT ) or 1, 1, 2000 )
 
     local open = tobool( param.PrimAFOPEN )
 
     local span = tonumber( param.PrimSPAN ) or 1
-    local sweep = math.sin( math.rad( ( tonumber( param.PrimSWEEP ) or 0 ) * 1 ) ) * ( span + c0)
-    local dihedral = math.sin( math.rad( ( tonumber( param.PrimDIHEDRAL ) or 0 ) * 1 ) ) * ( span + c0 )
+    local sweep = math_sin( math_rad( ( tonumber( param.PrimSWEEP ) or 0 ) * 1 ) ) * ( span + c0)
+    local dihedral = math_sin( math_rad( ( tonumber( param.PrimDIHEDRAL ) or 0 ) * 1 ) ) * ( span + c0 )
 
     local bits = tonumber( param.PrimCSOPT ) or 0
     local csenable = bit.band( bits, 1 ) == 1
@@ -1981,8 +1981,8 @@ registerType( "airfoil", function( param, data, threaded, physics )
 
     local pcount = #a0u         -- point count
     local tcount = pcount * 2   -- upper + lower point count
-    local scount = 2            -- number of sections
-
+    local scount = 2            -- number of sections, will need to be fixed in the future if i want to add a curve modifier
+                                -- currently the left/right clipper cant handle more than 2
     -- model
     local mapHU0 = 1 + tcount
     local mapHU1 = 3 + tcount
@@ -1994,7 +1994,7 @@ registerType( "airfoil", function( param, data, threaded, physics )
     local mapHL2 = 4 + tcount
     local mapHL3 = 2 + tcount
 
-    local function insert( simp, d, fill, side )
+    local function insert( simp, d, fill, side, convex )
         for j = 1, pcount do
             local p0u = a0u[j]
             local p1u = a1u[j]
@@ -2041,11 +2041,11 @@ registerType( "airfoil", function( param, data, threaded, physics )
 
             1 simpleton for the trailing edge
                 ..........
-                2222233333
+                2222222222
 
             added together we get
                 1111111111
-                222....333
+                222....222
 
             we also want an inverse
                 ..........
@@ -2060,20 +2060,19 @@ registerType( "airfoil", function( param, data, threaded, physics )
 
     if csenable and ylen > 0 and xlen > 0 then
         local rclipF = ypos
-        local lclipF = math.min( ypos + ylen, 1 )
+        local lclipF = math_min( ypos + ylen, 1 )
 
-        local rclipI = math.floor( rclipF * scount )
-        local lclipI = math.floor( lclipF * scount )
+        local rclipI = math_floor( rclipF * scount )
+        local lclipI = math_floor( lclipF * scount )
 
         local a = ( a0u[#a1u] + a0l[#a1l] ) * 0.5
         local b = ( a1u[#a1u] + a1l[#a1l] ) * 0.5
 
         local clipPos = ( 1 - ypos ) * a + ypos * b
         local clipDir = a - b
-        local clipLen = clipDir:Length()
         local clipTan = Vector( 1, 0, 0 )
 
-        local x = c0 + ( c1 - c0 ) * math.min(1, ypos + ( c0 > c1 and ylen or 0 ) )
+        local x = c0 + ( c1 - c0 ) * math_min(1, ypos + ( c0 > c1 and ylen or 0 ) )
         clipPos = clipPos + clipTan * x * xlen
 
         local model_f = simpleton.New()
@@ -2093,9 +2092,15 @@ registerType( "airfoil", function( param, data, threaded, physics )
             if i == lclipI and d > lclipF then insert( model_r, lclipF, true, -1 ) end
 
             local side
-            if i == 0 then side = -1 elseif i == scount - 1 then side = 1 end
+            if i == 0 then
+                side = -1
+                if rclipF <= 0 then side = nil end
+            elseif i == scount - 1 then
+                side = 1
+                if lclipF >= 1 then side = nil end
+            end
 
-            insert( model_r, d, rclipF > 0, rclipF > 0 and lclipF < 1 and side )
+            insert( model_r, d, rclipF > 0, side )
 
             if i == rclipI and d < rclipF then insert( model_r, rclipF, false, 1 ) end
             if i == lclipI and d < lclipF then insert( model_r, lclipF, true, -1 ) end
@@ -2107,10 +2112,27 @@ registerType( "airfoil", function( param, data, threaded, physics )
         local clipped_model_f, _ = model_f:Bisect( { pos = clipPos, normal = -clipDir }, true, false )
         local clipped_model_r, _ = model_r:Bisect( { pos = clipPos, normal = clipDir }, false, false )
 
-        model = simpleton.New()
-        model:Merge( clipped_model_f )
-        model:Merge( clipped_model_r )
-    else
+        if clipped_model_f and clipped_model_r then
+            model = simpleton.New()
+
+            model:Merge( clipped_model_f )
+            model:Merge( clipped_model_r )
+
+            if physics then
+                local center = span * ( ypos + ylen * 0.5 )
+                local left, right = {}, {}
+
+                for i = 1, #clipped_model_r.verts do
+                    local v = clipped_model_r.verts[i]
+                    if v.y < center then left[#left + 1] = v else right[#right + 1] = v end
+                end
+
+                model.convexes = { clipped_model_f.verts, left, right }
+            end
+        end
+    end
+
+    if not model then
         model = simpleton.New()
 
         for i = 0, scount - 1 do
@@ -2121,10 +2143,10 @@ registerType( "airfoil", function( param, data, threaded, physics )
 
             insert( model, d, true, side )
         end
-    end
 
-    if physics then
-        model.convexes = { model.verts }
+        if physics then
+            model.convexes = { model.verts }
+        end
     end
 
     return model
