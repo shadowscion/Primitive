@@ -1970,8 +1970,11 @@ registerType( "airfoil", function( param, data, threaded, physics )
     local sweep = math.sin( math.rad( ( tonumber( param.PrimSWEEP ) or 0 ) * 1 ) ) * ( span + c0)
     local dihedral = math.sin( math.rad( ( tonumber( param.PrimDIHEDRAL ) or 0 ) * 1 ) ) * ( span + c0 )
 
+    local bits = tonumber( param.PrimCSOPT ) or 0
+    local csenable = bit.band( bits, 1 ) == 1
+
     -- path
-    local points = 25
+    local points = 15
 
     local a0u, a0l = NACA4DIGIT( ease[param.PrimAFINTERP] or ease.linear, points, c0, m, p, t, open )
     local a1u, a1l = NACA4DIGIT( ease[param.PrimAFINTERP] or ease.linear, points, c1, m, p, t, open, sweep, span, dihedral )
@@ -1980,6 +1983,7 @@ registerType( "airfoil", function( param, data, threaded, physics )
     local tcount = pcount * 2   -- upper + lower point count
     local scount = 2            -- number of sections
 
+    -- model
     local mapHU0 = 1 + tcount
     local mapHU1 = 3 + tcount
     local mapHU2 = 3
@@ -1990,11 +1994,7 @@ registerType( "airfoil", function( param, data, threaded, physics )
     local mapHL2 = 4 + tcount
     local mapHL3 = 2 + tcount
 
-    -- model
-    local model = simpleton.New()
-    local verts = model.verts
-
-    local function insert( d, fill, side )
+    local function insert( simp, d, fill, side )
         for j = 1, pcount do
             local p0u = a0u[j]
             local p1u = a1u[j]
@@ -2005,245 +2005,131 @@ registerType( "airfoil", function( param, data, threaded, physics )
             local pu = ( 1 - d ) * p0u + d * p1u
             local pl = ( 1 - d ) * p0l + d * p1l
 
-            local n = #verts
-            model:PushVertex( pu )
-            model:PushVertex( pl )
-
-            -- if not fill, push to other model
+            local n = #simp.verts
+            simp:PushVertex( pu )
+            simp:PushVertex( pl )
 
             if j < pcount then
                 if d < 1 and fill then
-                    model:PushTriangle( mapHU0 + n, mapHU1 + n, mapHU2 + n )
-                    model:PushTriangle( mapHU0 + n, mapHU2 + n, mapHU3 + n )
-                    model:PushTriangle( mapHL0 + n, mapHL1 + n, mapHL2 + n )
-                    model:PushTriangle( mapHL0 + n, mapHL2 + n, mapHL3 + n )
+                    simp:PushTriangle( mapHU0 + n, mapHU1 + n, mapHU2 + n )
+                    simp:PushTriangle( mapHU0 + n, mapHU2 + n, mapHU3 + n )
+                    simp:PushTriangle( mapHL0 + n, mapHL1 + n, mapHL2 + n )
+                    simp:PushTriangle( mapHL0 + n, mapHL2 + n, mapHL3 + n )
                 end
                 if side == -1 then
-                    model:PushTriangle( n + 1, n + 3, n + 4 )
-                    model:PushTriangle( n + 1, n + 4, n + 2 )
+                    simp:PushTriangle( n + 1, n + 3, n + 4 )
+                    simp:PushTriangle( n + 1, n + 4, n + 2 )
                 elseif side == 1  then
-                    model:PushTriangle( n + 2, n + 4, n + 3 )
-                    model:PushTriangle( n + 2, n + 3, n + 1 )
+                    simp:PushTriangle( n + 2, n + 4, n + 3 )
+                    simp:PushTriangle( n + 2, n + 3, n + 1 )
                 end
             else
                 if open and d < 1 and fill then -- trailing edge
-                    model:PushTriangle( mapHU0 + n, mapHL3 + n, n + 2 )
-                    model:PushTriangle( mapHU0 + n, n + 2, n + 1 )
+                    simp:PushTriangle( mapHU0 + n, mapHL3 + n, n + 2 )
+                    simp:PushTriangle( mapHU0 + n, n + 2, n + 1 )
                 end
             end
         end
     end
 
+    --[[
+        if control surface, we want
+
+            1 simpleton for the leading edge
+                1111111111
+                ..........
+
+            1 simpleton for the trailing edge
+                ..........
+                2222233333
+
+            added together we get
+                1111111111
+                222....333
+
+            we also want an inverse
+                ..........
+                ...4444...
+    ]]
 
     local ypos = param.PrimCSYPOS
     local ylen = param.PrimCSYLEN
     local xlen = param.PrimCSXLEN
 
-    if ylen > 0 then
+    local model
+
+    if csenable and ylen > 0 and xlen > 0 then
         local rclipF = ypos
         local lclipF = math.min( ypos + ylen, 1 )
 
         local rclipI = math.floor( rclipF * scount )
         local lclipI = math.floor( lclipF * scount )
 
+        local a = ( a0u[#a1u] + a0l[#a1l] ) * 0.5
+        local b = ( a1u[#a1u] + a1l[#a1l] ) * 0.5
+
+        local clipPos = ( 1 - ypos ) * a + ypos * b
+        local clipDir = a - b
+        local clipLen = clipDir:Length()
+        local clipTan = Vector( 1, 0, 0 )
+
+        local x = c0 + ( c1 - c0 ) * math.min(1, ypos + ( c0 > c1 and ylen or 0 ) )
+        clipPos = clipPos + clipTan * x * xlen
+
+        local model_f = simpleton.New()
+        local model_r = simpleton.New()
+
         for i = 0, scount - 1 do
             local d = i / ( scount - 1 )
 
-            if i == rclipI and d > rclipF then insert( rclipF, false, 1 ) end
-            if i == lclipI and d > lclipF then insert( lclipF, true, -1 ) end
+            -- leading edge
+            local side
+            if i == 0 then side = -1 elseif i == scount - 1 then side = 1 end
+
+            insert( model_f, d, true, side )
+
+            -- trailing edge
+            if i == rclipI and d > rclipF then insert( model_r, rclipF, false, 1 ) end
+            if i == lclipI and d > lclipF then insert( model_r, lclipF, true, -1 ) end
 
             local side
             if i == 0 then side = -1 elseif i == scount - 1 then side = 1 end
 
-            insert( d, rclipF > 0, rclipF > 0 and lclipF < 1 and side )
+            insert( model_r, d, rclipF > 0, rclipF > 0 and lclipF < 1 and side )
 
-            if i == rclipI and d < rclipF then insert( rclipF, false, 1 ) end
-            if i == lclipI and d < lclipF then insert( lclipF, true, -1 ) end
+            if i == rclipI and d < rclipF then insert( model_r, rclipF, false, 1 ) end
+            if i == lclipI and d < lclipF then insert( model_r, lclipF, true, -1 ) end
         end
+
+        vec_normalize( clipDir )
+        clipDir = vec_cross( clipDir, Vector( 0, 0, 1 ) )
+
+        local clipped_model_f, _ = model_f:Bisect( { pos = clipPos, normal = -clipDir }, true, false )
+        local clipped_model_r, _ = model_r:Bisect( { pos = clipPos, normal = clipDir }, false, false )
+
+        model = simpleton.New()
+        model:Merge( clipped_model_f )
+        model:Merge( clipped_model_r )
     else
+        model = simpleton.New()
+
         for i = 0, scount - 1 do
             local d = i / ( scount - 1 )
 
             local side
             if i == 0 then side = -1 elseif i == scount - 1 then side = 1 end
 
-            insert( d, true, side )
+            insert( model, d, true, side )
         end
     end
 
-
-
-    -- local ypos = param.PrimCSYPOS
-    -- local ylen = param.PrimCSYLEN
-    -- local xlen = param.PrimCSXLEN
-
-    -- local a = ( a0u[#a1u] + a0l[#a1l] ) * 0.5
-    -- local b = ( a1u[#a1u] + a1l[#a1l] ) * 0.5
-
-    -- local clipPos = ( 1 - ypos ) * a + ypos * b
-    -- local clipDir = a - b
-    -- local clipLen = clipDir:Length()
-    -- local clipTan = Vector( 1, 0, 0 )
-
-    -- local x = c0 + ( c1 - c0 ) * math.min(1, ypos + ( c0 > c1 and ylen or 0 ) )
-    -- clipPos = clipPos + clipTan * x * xlen
-
-    --[[
-
-        add section counts and ignore vertices to fake left and right clips
-            ignore faces between
-
-        clip x axis from center of y clip, fill face
-
-    ]]
-
-
-    -- local left, right = model:Bisect( { pos = clipPos, normal = Vector( 0, -1, 0 ) }, true, true )
-    -- if left and right then
-    --     model = left
-    -- end
-
-    --[[
-    local leading, trailing, loop = model:Bisect( { pos = clipPos, normal = clipTan }, true, true )
-    model = leading
-    for i = 1, #loop do
-        model:PushVertex( loop[i] - clipTan * 50 )
+    if physics then
+        model.convexes = { model.verts }
     end
-    ]]
-
-    -- if leading and trailing then
-    --     local right, left = trailing:Bisect( { pos = clipPos, normal = clipDir }, true, true )
-    --     model = left
-    -- end
 
     return model
 end )
 
-
-
-
-            /*
-
-    construct.factory = function( param, data, thread, physics )
-        local verts, faces, convexes
-
-        local m = math.Clamp( tonumber( param.PrimAFM ) or 0, 0, 9.5 )
-        local p = math.Clamp( tonumber( param.PrimAFP ) or 0, 0, 90 )
-        local t = math.Clamp( tonumber( param.PrimAFT ) or 0, 1, 40 )
-
-        local c0 = tonumber( param.PrimCHORDR ) or 1
-        local c1 = tonumber( param.PrimCHORDT ) or 1
-
-        local open = tobool( param.PrimAFOPEN )
-
-        local span = tonumber( param.PrimSPAN ) or 1
-        local sweep = math.sin( math.rad( ( tonumber( param.PrimSWEEP ) or 0 ) * 1 ) ) * ( span + c0)
-        local dihedral = math.sin( math.rad( ( tonumber( param.PrimDIHEDRAL ) or 0 ) * 1 ) ) * ( span + c0 )
-
-        local points = 10
-
-        local a0u, a0l = NACA4DIGIT( interp[param.PrimAFINTERP] or interp.linear, points, c0, m, p, t, open )
-        local a1u, a1l = NACA4DIGIT( interp[param.PrimAFINTERP] or interp.linear, points, c1, m, p, t, open, sweep, span, dihedral )
-
-        local pcount = #a0u         -- point count
-        local tcount = pcount * 2   -- upper + lower point count
-        local scount = 2            -- number of sections
-
-        local mapHU0 = 1 + tcount
-        local mapHU1 = 3 + tcount
-        local mapHU2 = 3
-        local mapHU3 = 1
-
-        local mapHL0 = 2
-        local mapHL1 = 4
-        local mapHL2 = 4 + tcount
-        local mapHL3 = 2 + tcount
-
-        local sverts = {}
-        local sfaces = {}
-
-        for i = 0, scount - 1 do
-            local d = i / ( scount - 1 )
-
-            for j = 1, pcount do
-                local p0u = a0u[j]
-                local p1u = a1u[j]
-
-                local p0l = a0l[j]
-                local p1l = a1l[j]
-
-                local pu = ( 1 - d ) * p0u + d * p1u
-                local pl = ( 1 - d ) * p0l + d * p1l
-
-                local n = #sverts
-                sverts[n + 1] = pu
-                sverts[n + 2] = pl
-
-                if j < pcount then
-                    if i < scount - 1 then -- span
-                        sfaces[#sfaces + 1] = { mapHU0 + n, mapHU1 + n, mapHU2 + n }
-                        sfaces[#sfaces + 1] = { mapHU0 + n, mapHU2 + n, mapHU3 + n }
-                        sfaces[#sfaces + 1] = { mapHL0 + n, mapHL1 + n, mapHL2 + n }
-                        sfaces[#sfaces + 1] = { mapHL0 + n, mapHL2 + n, mapHL3 + n }
-                    end
-                    if i == 0 then -- right endcap
-                        sfaces[#sfaces + 1] = { n + 1, n + 3, n + 4 }
-                        sfaces[#sfaces + 1] = { n + 1, n + 4, n + 2 }
-                    elseif i == scount - 1 then -- left endcap
-                        sfaces[#sfaces + 1] = { n + 2, n + 4, n + 3 }
-                        sfaces[#sfaces + 1] = { n + 2, n + 3, n + 1 }
-                    end
-                else
-                    if open and i < scount - 1 then -- trailing edge
-                        sfaces[#sfaces + 1] = { mapHU0 + n, mapHL3 + n, n + 2 }
-                        sfaces[#sfaces + 1] = { mapHU0 + n, n + 2, n + 1 }
-                    end
-                end
-            end
-        end
-
-
-        local clip = { pos = Vector( 0, span * 0.5, 0 ), normal = Angle():Right() }
-
-        return { verts = verts, faces = faces, convexes = convexes }
-    end
-
-        for i = 0, scount - 1 do
-            local d = i / ( scount - 1 )
-
-            for j = 1, pcount do
-                local p0u = a0u[j]
-                local p1u = a1u[j]
-
-                local p0l = a0l[j]
-                local p1l = a1l[j]
-
-                local pu = ( 1 - d ) * p0u + d * p1u
-                local pl = ( 1 - d ) * p0l + d * p1l
-
-                local n = #verts
-                verts[n + 1] = pu
-                verts[n + 2] = pl
-            end
-        end
-
-        do
-            local ypos = param.PrimCSYPOS
-            local ylen = param.PrimCSYLEN
-            local xlen = param.PrimCSXLEN
-
-            local a = ( a0u[#a1u] + a0l[#a1l] ) * 0.5
-            local b = ( a1u[#a1u] + a1l[#a1l] ) * 0.5
-
-            local clipPos = ( 1 - ypos ) * a + ypos * b
-            local clipDir = a - b
-            local clipLen = clipDir:Length()
-            local clipTan = Vector( 1, 0, 0 )
-
-            local x = c0 + ( c1 - c0 ) * math.min(1, ypos + ( c0 > c1 and ylen or 0 ) )
-            clipPos = clipPos + clipTan * x * xlen
-        end
-        */
 
 
 --[=====[
