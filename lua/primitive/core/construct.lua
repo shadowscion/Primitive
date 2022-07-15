@@ -100,7 +100,7 @@ end
 
 
 -------------------------------
-addon.construct = { simpleton = {}, prefab = {}, util = {} }
+addon.construct = { simpleton = {} }
 
 local registerType, getType
 local construct_types = {}
@@ -338,6 +338,86 @@ do
         end
 
         return plane
+    end
+
+
+    --[[
+        @FUNCTION: simpleton.RegisterPrefa
+
+        @DESCRIPTION:
+
+        @PARAMETERS:
+            [string] name
+            [table] verts
+            [table] index
+
+        @RETURN:
+    --]]
+    local prefab_types = {}
+
+    function simpleton.RegisterPrefab( name, index, verts )
+        prefab_types[name] = {
+            name = name,
+            verts = verts,
+            index = index,
+        }
+        return prefab_types[name]
+    end
+
+
+    --[[
+        @FUNCTION: simpleton:PushPrefab
+
+        @DESCRIPTION: Insert a prefab shape into a simpleton's table
+
+        @PARAMETERS:
+            [string] name
+            [vector] local pos
+            [angle] local ang
+            [vector] scale
+            [boolean] pushindex
+            [table] additional table to add vertices to (optional)
+            [number] subtable id of ^, increments if not given (optional)
+
+        @RETURN:
+            [table] key table of added vertices
+    --]]
+    function meta:PushPrefab( name, pos, ang, scale, pushindex, vtable, vtableN )
+        local prefab = prefab_types[name]
+        if not prefab then
+            return
+        end
+
+        local key = {}
+        local verts, index = prefab.verts, prefab.index
+
+        if vtable and not vtableN then
+            vtable[#vtable + 1] = {}
+            vtable = vtable[#vtable]
+        end
+
+        for i = 1, #verts do
+            local vertex = Vector( verts[i] )
+
+            if scale then vec_mul( vertex, scale ) end
+            if ang then vec_rotate( vertex, ang ) end
+            if pos then vec_add( vertex, pos ) end
+
+            local n = #self.verts + 1
+            self.verts[n] = vertex
+
+            key[i] = n
+
+            if vtable then vtable[#vtable + 1] = vertex end
+        end
+
+        if pushindex then
+            for i = 1, #index do
+                self:PushIndex( key[index[i]] )
+            end
+        end
+
+        return key
     end
 
 
@@ -1071,6 +1151,199 @@ do
         end
     end
 end
+
+
+-- PREFABS
+simpleton.RegisterPrefab( "cube",
+    {
+        1, 5, 6,
+        1, 6, 2,
+        5, 7, 8,
+        5, 8, 6,
+        7, 3, 4,
+        7, 4, 8,
+        3, 1, 2,
+        3, 2, 4,
+        4, 2, 6,
+        4, 6, 8,
+        1, 3, 7,
+        1, 7, 5,
+    },
+    {
+        Vector( -0.5, 0.5, -0.5 ),
+        Vector( -0.5, 0.5, 0.5 ),
+        Vector( 0.5, 0.5, -0.5 ),
+        Vector( 0.5, 0.5, 0.5 ),
+        Vector( -0.5, -0.5, -0.5 ),
+        Vector( -0.5, -0.5, 0.5 ),
+        Vector( 0.5, -0.5, -0.5 ),
+        Vector( 0.5, -0.5, 0.5 ),
+    }
+)
+simpleton.RegisterPrefab( "plane",
+    {
+        1, 2, 3,
+        1, 3, 4,
+    },
+    {
+        Vector( -0.5, 0.5, 0 ),
+        Vector( -0.5, -0.5, 0 ),
+        Vector( 0.5, -0.5, 0 ),
+        Vector( 0.5, 0.5, 0 ),
+    }
+)
+simpleton.RegisterPrefab( "slider_blade",
+    {
+        1, 2, 3,
+        2, 4, 6,
+        2, 6, 3,
+        3, 6, 5,
+        3, 5, 1,
+        4, 8, 7,
+        4, 7, 6,
+        6, 7, 9,
+        6, 9, 5,
+        11, 10, 7,
+        11, 7, 8,
+        9, 7, 10,
+        9, 10, 12,
+        14, 13, 10,
+        14, 10, 11,
+        12, 10, 13,
+        12, 13, 15,
+        17, 16, 13,
+        17, 13, 14,
+        15, 13, 16,
+        15, 16, 18,
+        21, 16, 17,
+        21, 17, 19,
+        20, 18, 16,
+        20, 16, 21,
+        20, 21, 19,
+        19, 17, 14,
+        19, 14, 11,
+        19, 11, 8,
+        19, 8, 4,
+        19, 4, 2,
+        1, 5, 9,
+        1, 9, 12,
+        1, 12, 15,
+        1, 15, 18,
+        1, 18, 20,
+        2, 1, 20,
+        2, 20, 19,
+    },
+    {
+        Vector( 0.5, 0.5, 0.5 ),
+        Vector( 0.5, -0.5, 0.5 ),
+        Vector( 0.5, -0.25, 0.153185 ),
+        Vector( 0.433013, -0.5, 0.173407 ),
+        Vector( 0.433013, 0.5, 0.173407 ),
+        Vector( 0.433013, -0.25, -0.173407 ),
+        Vector( 0.25, -0.25, -0.41249 ),
+        Vector( 0.25, -0.5, -0.065675 ),
+        Vector( 0.25, 0.5, -0.065675 ),
+        Vector( 0, -0.25, -0.5 ),
+        Vector( 0, -0.5, -0.153185 ),
+        Vector( -0, 0.5, -0.153185 ),
+        Vector( -0.25, -0.25, -0.41249 ),
+        Vector( -0.25, -0.5, -0.065675 ),
+        Vector( -0.25, 0.5, -0.065675 ),
+        Vector( -0.433013, -0.25, -0.173407 ),
+        Vector( -0.433013, -0.5, 0.173407 ),
+        Vector( -0.433013, 0.5, 0.173407 ),
+        Vector( -0.5, -0.5, 0.5 ),
+        Vector( -0.5, 0.5, 0.5 ),
+        Vector( -0.5, -0.25, 0.153186 ),
+    }
+)
+simpleton.RegisterPrefab( "cube",
+    {
+        1, 5, 6,
+        1, 6, 2,
+        5, 7, 8,
+        5, 8, 6,
+        7, 3, 4,
+        7, 4, 8,
+        3, 1, 2,
+        3, 2, 4,
+        4, 2, 6,
+        4, 6, 8,
+        1, 3, 7,
+        1, 7, 5,
+    },
+    {
+        Vector( -0.5, 0.5, -0.5 ),
+        Vector( -0.5, 0.5, 0.5 ),
+        Vector( 0.5, 0.5, -0.5 ),
+        Vector( 0.5, 0.5, 0.5 ),
+        Vector( -0.5, -0.5, -0.5 ),
+        Vector( -0.5, -0.5, 0.5 ),
+        Vector( 0.5, -0.5, -0.5 ),
+        Vector( 0.5, -0.5, 0.5 ),
+    }
+)
+simpleton.RegisterPrefab( "slider_spike",
+    {
+        3, 5, 1,
+        6, 5, 3,
+        1, 5, 4,
+        4, 5, 6,
+        9, 6, 3,
+        9, 3, 2,
+        2, 3, 1,
+        2, 1, 8,
+        8, 1, 4,
+        8, 4, 7,
+        7, 4, 6,
+        7, 6, 9,
+        7, 9, 2,
+        7, 2, 8,
+    },
+    {
+        Vector( 0.5, -0.5, 0.3 ),
+        Vector( -0.5, -0.5, 0.5 ),
+        Vector( -0.5, -0.5, 0.3 ),
+        Vector( 0.5, 0.5, 0.3 ),
+        Vector( 0, 0, -0.5 ),
+        Vector( -0.5, 0.5, 0.3 ),
+        Vector( 0.5, 0.5, 0.5 ),
+        Vector( 0.5, -0.5, 0.5 ),
+        Vector( -0.5, 0.5, 0.5 ),
+    }
+)
+simpleton.RegisterPrefab( "slider_wedge",
+    {
+        9, 1, 6,
+        9, 6, 7,
+        9, 2, 3,
+        9, 3, 1,
+        1, 3, 5,
+        1, 5, 6,
+        6, 5, 8,
+        6, 8, 7,
+        7, 8, 2,
+        7, 2, 9,
+        3, 10, 4,
+        3, 4, 5,
+        8, 4, 10,
+        8, 10, 2,
+        2, 10, 3,
+        5, 4, 8,
+    },
+    {
+        Vector( -0.5, -0.5, 0.5 ),
+        Vector( -0.5, 0.5, 0.3 ),
+        Vector( -0.5, -0.5, 0.3 ),
+        Vector( 0.5, -0, -0.5 ),
+        Vector( 0.5, -0.5, 0.3 ),
+        Vector( 0.5, -0.5, 0.5 ),
+        Vector( 0.5, 0.5, 0.5 ),
+        Vector( 0.5, 0.5, 0.3 ),
+        Vector( -0.5, 0.5, 0.5 ),
+        Vector( -0.5, 0, -0.5 ),
+    }
+)
 
 
 -- ERROR
@@ -2267,251 +2540,16 @@ registerType( "airfoil", function( param, data, threaded, physics )
 end )
 
 
-
---[=====[
-
---[[
-
-    PREFAB SHAPES THAT CAN BE INSERTED INTO A VERTEX/CONVEX TABLE
-
-]]
-
-local simpleton
-do
-
-    -- copies and util_Transforms vertex table, offsets face table by ibuffer
-    local function copy( self, pos, rot, scale, ibuffer )
-        local verts = {}
-        local faces = table.Copy( self.faces )
-
-        if ibuffer then
-            for faceid = 1, #faces do
-                local face = faces[faceid]
-                for vertid = 1, #face do
-                    face[vertid] = face[vertid] + ibuffer
-                end
-            end
-        end
-
-        for i = 1, #self.verts do
-            local vertex = Vector( self.verts[i] )
-
-            if scale then
-                mulVec( vertex, scale )
-            end
-            if rot then
-                rotateVec( vertex, rot )
-            end
-            if pos then
-                addVec( vertex, pos )
-            end
-
-            verts[i] = vertex
-        end
-
-        return verts, faces
-    end
-
-    -- inserts a simpleton into verts, faces, convexes
-    local function insert( self, verts, faces, convexes, pos, rot, scale, hull )
-        local pverts, pfaces = self:copy( pos, rot, scale, ( verts and faces ) and #verts or 0 )
-
-        if faces then
-            for faceid = 1, #pfaces do
-                faces[#faces + 1] = pfaces[faceid]
-            end
-        end
-
-        if convexes and not hull then
-            hull = {}
-            convexes[#convexes + 1] = hull
-        end
-
-        if hull or verts then
-            for i = 1, #pverts do
-                local vertex = pverts[i]
-                if hull then
-                    hull[#hull + 1] = vertex
-                end
-                if verts then
-                    verts[#verts + 1] = vertex
-                end
-            end
-        end
-
-        return pverts, pfaces
-    end
-
-    local types = {}
-
-    function simpleton( name )
-        return types[name]
-    end
-
-    local function register( name, pverts, pfaces )
-        types[name] = { name = name, verts = pverts, faces = pfaces, copy = copy, insert = insert }
-        return types[name] or types.cube
-    end
-
-    Addon.construct.simpleton = {
-        get = simpleton,
-        set = function ( name, pverts, pfaces )
-            return { name = name, verts = pverts, faces = pfaces, copy = copy, insert = insert }
-        end,
-        register = register,
-    }
-
-    register( "plane",
-    {
-        Vector( -0.5, 0.5, 0 ),
-        Vector( -0.5, -0.5, 0 ),
-        Vector( 0.5, -0.5, 0 ),
-        Vector( 0.5, 0.5, 0 ),
-    },
-    {
-        { 1, 2, 3, 4 },
-
-    } )
-
-    register( "cube",
-    {
-        Vector( -0.5, 0.5, -0.5 ),
-        Vector( -0.5, 0.5, 0.5 ),
-        Vector( 0.5, 0.5, -0.5 ),
-        Vector( 0.5, 0.5, 0.5 ),
-        Vector( -0.5, -0.5, -0.5 ),
-        Vector( -0.5, -0.5, 0.5 ),
-        Vector( 0.5, -0.5, -0.5 ),
-        Vector( 0.5, -0.5, 0.5 )
-    },
-    {
-        { 1, 5, 6, 2 },
-        { 5, 7, 8, 6 },
-        { 7, 3, 4, 8 },
-        { 3, 1, 2, 4 },
-        { 4, 2, 6, 8 },
-        { 1, 3, 7, 5 }
-    } )
-
-    types.slider_cube = types.cube
-
-    register( "slider_wedge",
-    {
-        Vector( -0.5, -0.5, 0.5 ),
-        Vector( -0.5, 0.5, 0.3 ),
-        Vector( -0.5, -0.5, 0.3 ),
-        Vector( 0.5, -0, -0.5 ),
-        Vector( 0.5, -0.5, 0.3 ),
-        Vector( 0.5, -0.5, 0.5 ),
-        Vector( 0.5, 0.5, 0.5 ),
-        Vector( 0.5, 0.5, 0.3 ),
-        Vector( -0.5, 0.5, 0.5 ),
-        Vector( -0.5, 0, -0.5 ),
-    },
-    {
-        { 9, 1, 6, 7 },
-        { 9, 2, 3, 1 },
-        { 1, 3, 5, 6 },
-        { 6, 5, 8, 7 },
-        { 7, 8, 2, 9 },
-        { 3, 10, 4, 5 },
-        { 8, 4, 10, 2 },
-        { 2, 10, 3 },
-        { 5, 4, 8 },
-    } )
-
-    register( "slider_spike",
-    {
-        Vector( 0.5, -0.5, 0.3 ),
-        Vector( -0.5, -0.5, 0.5 ),
-        Vector( -0.5, -0.5, 0.3 ),
-        Vector( 0.5, 0.5, 0.3 ),
-        Vector( 0, 0, -0.5 ),
-        Vector( -0.5, 0.5, 0.3 ),
-        Vector( 0.5, 0.5, 0.5 ),
-        Vector( 0.5, -0.5, 0.5 ),
-        Vector( -0.5, 0.5, 0.5 ),
-    },
-    {
-        { 3, 5, 1 },
-        { 6, 5, 3 },
-        { 1, 5, 4 },
-        { 4, 5, 6 },
-        { 9, 6, 3, 2 },
-        { 2, 3, 1, 8 },
-        { 8, 1, 4, 7 },
-        { 7, 4, 6, 9 },
-        { 7, 9, 2, 8 },
-    } )
-
-    register( "slider_blade",
-    {
-        Vector( 0.5, 0.5, 0.5 ),
-        Vector( 0.5, -0.5, 0.5 ),
-        Vector( 0.5, -0.25, 0.153185 ),
-        Vector( 0.433013, -0.5, 0.173407 ),
-        Vector( 0.433013, 0.5, 0.173407 ),
-        Vector( 0.433013, -0.25, -0.173407 ),
-        Vector( 0.25, -0.25, -0.412490 ),
-        Vector( 0.25, -0.5, -0.065675 ),
-        Vector( 0.25, 0.5, -0.065675 ),
-        Vector( 0, -0.25, -0.5 ),
-        Vector( 0, -0.5, -0.153185 ),
-        Vector( -0, 0.5, -0.153185 ),
-        Vector( -0.25, -0.25, -0.412490 ),
-        Vector( -0.25, -0.5, -0.065675 ),
-        Vector( -0.25, 0.5, -0.065675 ),
-        Vector( -0.433013, -0.25, -0.173407 ),
-        Vector( -0.433013, -0.5, 0.173407 ),
-        Vector( -0.433013, 0.5, 0.173407 ),
-        Vector( -0.5, -0.5, 0.5 ),
-        Vector( -0.5, 0.5, 0.5 ),
-        Vector( -0.5, -0.25, 0.153186 ),
-    },
-    {
-        { 1, 2, 3 },
-        { 2, 4, 6, 3 },
-        { 3, 6, 5, 1 },
-        { 4, 8, 7, 6 },
-        { 6, 7, 9, 5 },
-        { 11, 10, 7, 8 },
-        { 9, 7, 10, 12 },
-        { 14, 13, 10, 11 },
-        { 12, 10, 13, 15 },
-        { 17, 16, 13, 14 },
-        { 15, 13, 16, 18 },
-        { 21, 16, 17, 19 },
-        { 20, 18, 16, 21 },
-        { 20, 21, 19 },
-        { 19, 17, 14, 11, 8, 4, 2 },
-        { 1, 5, 9, 12, 15, 18, 20 },
-        { 2, 1, 20, 19 },
-     } )
-
-end
-
-
-
-
---[[
-
-    COMPLEX SHAPES
-
-]]
-
-registerType( "rail_slider", function( param, data, thread, physics )
-    local verts, faces, convexes = {}
-
-    if CLIENT then faces = {} end
-    if physics then convexes = {} end
-
+-- RAIL SLIDER
+registerType( "rail_slider", function( param, data, threaded, physics )
+    local model = simpleton.New()
+    model.convexes = {}
 
     -- base
     local bpos = isvector( param.PrimBPOS ) and Vector( param.PrimBPOS ) or Vector( 1, 1, 1 )
     local bdim = isvector( param.PrimBDIM ) and Vector( param.PrimBDIM ) or Vector( 1, 1, 1 )
 
     bpos.z = bpos.z + bdim.z * 0.5
-
 
     -- contact point
     local cpos = isvector( param.PrimCPOS ) and Vector( param.PrimCPOS ) or Vector( 1, 1, 1 )
@@ -2521,16 +2559,13 @@ registerType( "rail_slider", function( param, data, thread, physics )
     cpos.y = cpos.y + cdim.y * 0.5
     cpos.z = cpos.z + cdim.z * 0.5
 
-
     -- base
     if tobool( param.PrimBASE ) then
-        local cube = simpleton( "cube" )
-        cube:insert( verts, faces, convexes, bpos, nil, bdim )
+        model:PushPrefab( "cube", bpos, nil, bdim, CLIENT, model.convexes )
     end
 
-
     -- contact point
-    local ctype = simpleton( tostring( param.PrimCTYPE ) )
+    local ctype = tostring( param.PrimCTYPE )
     local cbits = math_floor( tonumber( param.PrimCENUMS ) or 0 )
 
     local cgap = tonumber( param.PrimCGAP ) or 0
@@ -2546,7 +2581,6 @@ registerType( "rail_slider", function( param, data, thread, physics )
     local ENUM_CDOUBLE = 16
     local double = bit.band( cbits, ENUM_CDOUBLE ) == ENUM_CDOUBLE
 
-
     -- flange
     local fbits, getflange = math_floor( tonumber( param.PrimFENUMS ) or 0 )
 
@@ -2560,7 +2594,7 @@ registerType( "rail_slider", function( param, data, thread, physics )
         end
 
         if fdim.y > 0 then
-            local ftype = simpleton( tostring( param.PrimFTYPE ) )
+            local ftype = tostring( param.PrimFTYPE )
 
             function getflange( i, pos, rot, side )
                 local s = bit.lshift( 1, i - 1 )
@@ -2571,12 +2605,11 @@ registerType( "rail_slider", function( param, data, thread, physics )
                     pos = pos - ( rot:Right() * ( fdim.y * 0.5 + cdim.y * 0.5 ) * side.y )
                     pos = pos + ( rot:Up() * ( cdim.z * 0.5 - fdim.z * 0.5 ) )
 
-                    ftype:insert( verts, faces, convexes, pos, rot, fdim )
+                    model:PushPrefab( ftype, pos, rot, fdim, CLIENT, model.convexes )
                 end
             end
         end
     end
-
 
     -- builder
     for i = 1, 4 do
@@ -2589,37 +2622,18 @@ registerType( "rail_slider", function( param, data, thread, physics )
             local rot = Angle( -crot.p * side.x, crot.y * side.x * side.y, crot.r * side.y )
 
             pos.x = pos.x + ( cdim.x * side.x * 0.5 )
-
-            ctype:insert( verts, faces, convexes, pos, rot, cdim )
+            model:PushPrefab( ctype, pos, rot, cdim, CLIENT, model.convexes )
 
             if getflange then getflange( i, pos, rot, side ) end
 
             if double then
                 pos = pos - ( rot:Right() * side.y * cgap )
-                ctype:insert( verts, faces, convexes, pos, rot, cdim )
+                model:PushPrefab( ctype, pos, rot, cdim, CLIENT, model.convexes )
             end
         end
     end
 
-    util_Transform( verts, param.PrimMESHROT, param.PrimMESHPOS, thread )
+    util_Transform( model.verts, param.PrimMESHROT, param.PrimMESHPOS, thread )
 
-    return { verts = verts, faces = faces, convexes = convexes }
+    return model
 end )
-
-
-
---[[
-
-    BASIC SHAPES
-
-]]
-
-
-
-
-
-
-
-
-
---]=====]
