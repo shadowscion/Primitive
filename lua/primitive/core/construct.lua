@@ -2054,22 +2054,22 @@ registerType( "airfoil", function( param, data, threaded, physics )
     local c0 = math_clamp( tonumber( param.PrimCHORDR ) or 1, 1, 2000 )
     local c1 = math_clamp( tonumber( param.PrimCHORDT ) or 1, 1, 2000 )
 
-    local open = tobool( param.PrimAFOPEN )
+    local openEdge = tobool( param.PrimAFOPEN )
+    local flipModel = tobool( param.PrimAFFLIP )
 
-    local span = tonumber( param.PrimSPAN ) or 1
-    local sweep = math_sin( math_rad( ( tonumber( param.PrimSWEEP ) or 0 ) * 1 ) ) * ( span + c0)
-    local dihedral = math_sin( math_rad( ( tonumber( param.PrimDIHEDRAL ) or 0 ) * 1 ) ) * ( span + c0 )
+    local wingSpan = tonumber( param.PrimSPAN ) or 1
+    local wingSweep = math_sin( math_rad( ( tonumber( param.PrimSWEEP ) or 0 ) * 1 ) ) * ( wingSpan + c0)
+    local wingDihedral = math_sin( math_rad( ( tonumber( param.PrimDIHEDRAL ) or 0 ) * 1 ) ) * ( wingSpan + c0 )
 
     local bits = tonumber( param.PrimCSOPT ) or 0
-    local csenable = bit.band( bits, 1 ) == 1
-
-    local flip = tobool( param.PrimAFFLIP )
+    local controlSurface = bit.band( bits, 1 ) == 1
+    local controlSurfaceInvert = bit.band( bits, 2 ) == 2
 
     -- path
     local points = 15
 
-    local a0u, a0l = NACA4DIGIT( util_Ease.cosine, points, c0, m, p, t, open )
-    local a1u, a1l = NACA4DIGIT( util_Ease.cosine, points, c1, m, p, t, open, sweep, span, dihedral )
+    local a0u, a0l = NACA4DIGIT( util_Ease.cosine, points, c0, m, p, t, openEdge )
+    local a1u, a1l = NACA4DIGIT( util_Ease.cosine, points, c1, m, p, t, openEdge, wingSweep, wingSpan, wingDihedral )
 
     local pcount = #a0u         -- point count
     local tcount = pcount * 2   -- upper + lower point count
@@ -2116,7 +2116,7 @@ registerType( "airfoil", function( param, data, threaded, physics )
                     simp:PushTriangle( n + 2, n + 3, n + 1 )
                 end
             else
-                if open and d < 1 and fill then -- trailing edge
+                if openEdge and d < 1 and fill then -- trailing edge
                     simp:PushTriangle( mapHU0 + n, mapHL3 + n, n + 2 )
                     simp:PushTriangle( mapHU0 + n, n + 2, n + 1 )
                 end
@@ -2124,33 +2124,13 @@ registerType( "airfoil", function( param, data, threaded, physics )
         end
     end
 
-    --[[
-        if control surface, we want
-
-            1 simpleton for the leading edge
-                1111111111
-                ..........
-
-            1 simpleton for the trailing edge
-                ..........
-                2222222222
-
-            added together we get
-                1111111111
-                222....222
-
-            we also want an inverse
-                ..........
-                ...4444...
-    ]]
-
     local ypos = param.PrimCSYPOS
     local ylen = param.PrimCSYLEN
     local xlen = param.PrimCSXLEN
 
     local model
 
-    if csenable and ylen > 0 and xlen > 0 then
+    if controlSurface and ylen > 0 and xlen > 0 then
         local rclipF = ypos
         local lclipF = math_min( ypos + ylen, 1 )
 
@@ -2167,66 +2147,97 @@ registerType( "airfoil", function( param, data, threaded, physics )
         local x = c0 + ( c1 - c0 ) * math_min(1, ypos + ( c0 > c1 and ylen or 0 ) )
         clipPos = clipPos + clipTan * x * xlen
 
-        local model_f = simpleton.New()
-        local model_r = simpleton.New()
+        if controlSurfaceInvert then
+            if ypos < 1 then
+                local model_r = simpleton.New()
 
-        for i = 0, scount - 1 do
-            local d = i / ( scount - 1 )
+                insert( model_r, rclipF, true, -1 )
+                insert( model_r, lclipF, false, 1 )
 
-            -- leading edge
-            local side
-            if i == 0 then side = -1 elseif i == scount - 1 then side = 1 end
+                vec_normalize( clipDir )
+                clipDir = vec_cross( clipDir, Vector( 0, 0, 1 ) )
 
-            insert( model_f, d, true, side )
+                local clipped_model_r, _ = model_r:Bisect( { pos = clipPos, normal = clipDir }, true, false )
 
-            -- trailing edge
-            if i == rclipI and d > rclipF then insert( model_r, rclipF, false, 1 ) end
-            if i == lclipI and d > lclipF then insert( model_r, lclipF, true, -1 ) end
+                if clipped_model_r then
+                    model = clipped_model_r
 
-            local side
-            if i == 0 then
-                side = -1
-                if rclipF <= 0 then side = nil end
-            elseif i == scount - 1 then
-                side = 1
-                if lclipF >= 1 then side = nil end
+                    if flipModel then
+                         model:Mirror( Vector(), Vector( 0, 1, 0 ) )
+                    end
+
+                    --model:Translate( -clipPos )
+
+                    if physics then
+                        model.convexes = { model.verts }
+                    end
+                end
             end
+        else
+            local model_f = simpleton.New()
+            local model_r = simpleton.New()
 
-            insert( model_r, d, rclipF > 0, side )
+            for i = 0, scount - 1 do
+                local d = i / ( scount - 1 )
 
-            if i == rclipI and d < rclipF then insert( model_r, rclipF, false, 1 ) end
-            if i == lclipI and d < lclipF then insert( model_r, lclipF, true, -1 ) end
-        end
+                -- leading edge
+                local side
+                if i == 0 then side = -1 elseif i == scount - 1 then side = 1 end
 
-        vec_normalize( clipDir )
-        clipDir = vec_cross( clipDir, Vector( 0, 0, 1 ) )
+                insert( model_f, d, true, side )
 
-        local clipped_model_f, _ = model_f:Bisect( { pos = clipPos, normal = -clipDir }, true, false )
-        local clipped_model_r, _ = model_r:Bisect( { pos = clipPos, normal = clipDir }, false, false )
+                -- trailing edge
+                if i == rclipI and d > rclipF then insert( model_r, rclipF, false, 1 ) end
+                if i == lclipI and d > lclipF then insert( model_r, lclipF, true, -1 ) end
 
-        if clipped_model_f and clipped_model_r then
-            model = simpleton.New()
-
-            if flip then
-                clipped_model_f:Mirror( Vector(), Vector( 0, 1, 0 ) )
-                clipped_model_r:Mirror( Vector(), Vector( 0, 1, 0 ) )
-            end
-
-            model:Merge( clipped_model_f )
-            model:Merge( clipped_model_r )
-
-            if physics then
-                local center = span * ( ypos + ylen * 0.5 )
-                if flip then center = -center end
-
-                local left, right = {}, {}
-
-                for i = 1, #clipped_model_r.verts do
-                    local v = clipped_model_r.verts[i]
-                    if v.y < center then left[#left + 1] = v else right[#right + 1] = v end
+                local side
+                if i == 0 then
+                    side = -1
+                    if rclipF <= 0 then side = nil end
+                elseif i == scount - 1 then
+                    side = 1
+                    if lclipF >= 1 then side = nil end
                 end
 
-                model.convexes = { clipped_model_f.verts, left, right }
+                insert( model_r, d, rclipF > 0, side )
+
+                if i == rclipI and d < rclipF then insert( model_r, rclipF, false, 1 ) end
+                if i == lclipI and d < lclipF then insert( model_r, lclipF, true, -1 ) end
+            end
+
+            vec_normalize( clipDir )
+            clipDir = vec_cross( clipDir, Vector( 0, 0, 1 ) )
+
+            local clipped_model_f, _ = model_f:Bisect( { pos = clipPos, normal = -clipDir }, true, false )
+            local clipped_model_r, _ = model_r:Bisect( { pos = clipPos, normal = clipDir }, false, false )
+
+            if clipped_model_f and clipped_model_r then
+                model = simpleton.New()
+
+                if flipModel then
+                    clipped_model_f:Mirror( Vector(), Vector( 0, 1, 0 ) )
+                    clipped_model_r:Mirror( Vector(), Vector( 0, 1, 0 ) )
+                end
+
+                --clipped_model_f:Translate( -clipPos )
+                --clipped_model_r:Translate( -clipPos )
+
+                model:Merge( clipped_model_f )
+                model:Merge( clipped_model_r )
+
+                if physics then
+                    local center = wingSpan * ( ypos + ylen * 0.5 )
+                    if flipModel then center = -center end
+
+                    local left, right = {}, {}
+
+                    for i = 1, #clipped_model_r.verts do
+                        local v = clipped_model_r.verts[i]
+                        if v.y < center then left[#left + 1] = v else right[#right + 1] = v end
+                    end
+
+                    model.convexes = { clipped_model_f.verts, left, right }
+                end
             end
         end
     end
@@ -2247,13 +2258,13 @@ registerType( "airfoil", function( param, data, threaded, physics )
             model.convexes = { model.verts }
         end
 
-        if flip then
+        if flipModel then
             model:Mirror( Vector(), Vector( 0, 1, 0 ) )
         end
     end
 
     return model
-end, { canThread = true } )
+end )
 
 
 
