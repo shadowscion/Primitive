@@ -30,13 +30,82 @@ local math_tau = math.pi * 2
 
 
 -------------------------------
+local util_Ease = {}
+util_Ease.linear = function( lhs, rhs )
+    return lhs / rhs
+end
+util_Ease.cosine = function( lhs, rhs )
+    return 1 - 0.5 * ( math_cos( ( lhs / rhs ) * math_pi ) + 1 )
+end
+util_Ease.quadratic = function( lhs, rhs )
+    return ( lhs / rhs ) ^ 2
+end
+
+local function util_MapF( x, in_min, in_max, out_min, out_max )
+    return ( x - in_min ) * ( out_max - out_min ) / ( in_max - in_min ) + out_min
+end
+
+local function util_Transform( points, rot, add, threaded )
+    -- NOTE: Vectors are mutable objects, which means this may have unexpected results if used
+    -- incorrectly ( applying util_Transform to same vertex multiple times by mistake ). That's why it's
+    -- per construct, instead of in the global getter function.
+
+    rot = isangle( rot ) and ( rot.p ~= 0 or rot.y ~= 0 or rot.r ~= 0 ) and rot or nil
+    add = isvector( add ) and ( add.x ~= 0 or add.y ~= 0 or add.z ~= 0 ) and add or nil
+
+    if rot and add then
+        for i = 1, #points do
+            local v = points[i]
+
+            vec_rotate( v, rot )
+            vec_add( v, add )
+        end
+    elseif rot then
+        for i = 1, #points do vec_rotate( points[i], rot ) end
+    elseif add then
+        for i = 1, #points do vec_add( points[i], add ) end
+    end
+end
+
+local function util_IntersectPlaneLine( lineStart, lineDir, planePos, planeNormal )
+    local a = vec_dot( planeNormal, lineDir )
+
+    if a == 0 then
+        if vec_dot( planeNormal, planePos - lineStart ) == 0 then
+            return lineStart
+        end
+        return false
+    end
+
+    local d = vec_dot( planeNormal, planePos - lineStart )
+
+    return lineStart + lineDir * ( d / a )
+end
+
+local function util_IntersectPlaneLineSegment( lineStart, lineFinish, planePos, planeNormal )
+    local lineDir = lineFinish - lineStart
+    local xpoint = util_IntersectPlaneLine( lineStart, lineDir, planePos, planeNormal )
+
+    if xpoint and vec_lengthsqr( xpoint - lineStart ) <= vec_lengthsqr( lineDir ) then
+        return xpoint
+    end
+
+    return false
+end
+
+local function util_PointMirror( point, origin, normal )
+    local l = vec_dot( normal, origin - point )
+    return point + normal * l * 2
+end
+
+
+-------------------------------
 addon.construct = { simpleton = {}, prefab = {}, util = {} }
 
 local registerType, getType
 local construct_types = {}
 
 do
-
     --[[
         @FUNCTION: addon.construct.registerType
 
@@ -164,6 +233,8 @@ do
             either a function or a coroutine that will build the mesh
     --]]
     function addon.construct.generate( construct, name, param, threaded, physics )
+        if SERVER then threaded = nil end
+
         -- Non-existant construct, error model CODE 1
         if construct == nil then
             return true, errorModel( 1, name )
@@ -197,10 +268,11 @@ do
         @RETURN:
             either a function or a coroutine that will build the mesh
     --]]
-    function addon.construct.get( name, param, thread, physics )
-        return addon.construct.generate( construct_types[name], name, param, thread, physics )
+    function addon.construct.get( name, param, threaded, physics )
+        return addon.construct.generate( construct_types[name], name, param, threaded, physics )
     end
 end
+
 
 local simpleton = addon.construct.simpleton
 do
@@ -266,6 +338,88 @@ do
         end
 
         return plane
+    end
+
+
+    --[[
+        @FUNCTION: simpleton:Mirror
+
+        @DESCRIPTION: Mirror a simpleton across a plane
+
+        @PARAMETERS:
+            [vector] mirror plane origin
+            [vector] mirror plane normal
+
+        @RETURN:
+    --]]
+    function meta:Mirror( origin, normal )
+        local clone = simpleton.New()
+
+        local index = self.index
+        local verts = self.verts
+
+        for i = 1, #index, 3 do
+            local a = index[i]
+            local b = index[i + 1]
+            local c = index[i + 2]
+
+            index[i] = c
+            index[i + 1] = b
+            index[i + 2] = a
+        end
+
+        local set = origin.Set
+        for i = 1, #verts do
+            local vertex = verts[i]
+            set( vertex, util_PointMirror( vertex, origin, normal ) )
+        end
+    end
+
+
+    --[[
+        @FUNCTION: simpleton:Clone
+
+        @DESCRIPTION: Make a clone of a simpleton, optionally, mirror it across a plane
+
+        @PARAMETERS:
+            [vector] mirror plane origin (optional)
+            [vector] mirror plane normal (optional)
+
+        @RETURN: The clone
+    --]]
+    function meta:Clone( origin, normal )
+        local clone = simpleton.New()
+
+        local index = self.index
+        local verts = self.verts
+
+        if isvector( origin ) and isvector( normal ) then
+            for i = 1, #index, 3 do
+                local a = index[i]
+                local b = index[i + 1]
+                local c = index[i + 2]
+
+                clone.index[i] = c
+                clone.index[i + 1] = b
+                clone.index[i + 2] = a
+            end
+
+            for i = 1, #verts do
+                clone.verts[i] = util_PointMirror( verts[i], origin, normal )
+            end
+
+            return clone
+        else
+            for i = 1, #index do
+                clone.index[i] = index[i]
+            end
+
+            for i = 1, #verts do
+                clone.verts[i] = Vector( verts[i] )
+            end
+
+            return clone
+        end
     end
 
 
@@ -442,34 +596,6 @@ do
     --[[
         CLIPPING ENGINE
     ]]
-
-    -- util.IntersectRayWithPlane seems to have an issue with the zero case
-    local function intersectRayWithPlane( lineStart, lineDir, planePos, planeNormal )
-        local a = vec_dot( planeNormal, lineDir )
-
-        if a == 0 then
-            if vec_dot( planeNormal, planePos - lineStart ) == 0 then
-                return lineStart
-            end
-            return false
-        end
-
-        local d = vec_dot( planeNormal, planePos - lineStart )
-
-        return lineStart + lineDir * ( d / a )
-    end
-
-    local function intersectSegmentWithPlane( lineStart, lineFinish, planePos, planeNormal )
-        local lineDir = lineFinish - lineStart
-        local xpoint = intersectRayWithPlane( lineStart, lineDir, planePos, planeNormal )
-
-        if xpoint and vec_lengthsqr( xpoint - lineStart ) <= vec_lengthsqr( lineDir ) then
-            return xpoint
-        end
-
-        return false
-    end
-
     local function pushClippedTriangle( self, a, b, c )
         if not a or not b or not c then print( a, b, c ) return end
 
@@ -519,8 +645,8 @@ do
 
         -- Perform a line-segment/plane intersectin between the two
         -- new edges and the clipping plane to get the new vertices.
-        local instersect_tAB = intersectSegmentWithPlane( tempV[tA], tempV[tB], planePos, planeNormal )
-        local instersect_tAC = intersectSegmentWithPlane( tempV[tA], tempV[tC], planePos, planeNormal )
+        local instersect_tAB = util_IntersectPlaneLineSegment( tempV[tA], tempV[tB], planePos, planeNormal )
+        local instersect_tAC = util_IntersectPlaneLineSegment( tempV[tA], tempV[tC], planePos, planeNormal )
 
         local side = tempB[tA] and abovePlane or belowPlane
         pushClippedTriangle( side, tempT[tA], instersect_tAC, instersect_tAB )
@@ -539,7 +665,7 @@ do
         end
     end
 
-    local function util_CloseEdgeLoop( abovePlane, belowPlane, loopCenter, loopPoints )
+    local function closeEdgeLoop( abovePlane, belowPlane, loopCenter, loopPoints )
         local aA
         if abovePlane then
             aA = abovePlane:PushVertex( loopCenter )
@@ -566,7 +692,7 @@ do
     end
 
     --[[ Given an unordered list of line segments, return a closed boundary
-    local function util_CloseEdgeLoop( lineSegments )
+    local function closeEdgeLoop( lineSegments )
         local polychain = {}
 
         -- pop a line segment from the list
@@ -657,7 +783,7 @@ do
                 return vec_dot( planeNormal, vec_cross( sa - loopCenter, sb - loopCenter ) ) < 0
             end )
 
-            util_CloseEdgeLoop( fillAbove and abovePlane, fillBelow and belowPlane, loopCenter, loopPoints )
+            closeEdgeLoop( fillAbove and abovePlane, fillBelow and belowPlane, loopCenter, loopPoints )
         end
 
         abovePlane.key = {}
@@ -947,42 +1073,6 @@ do
 end
 
 
--- UTIL
-local function map( x, in_min, in_max, out_min, out_max )
-    return ( x - in_min ) * ( out_max - out_min ) / ( in_max - in_min ) + out_min
-end
-
-local function transform( verts, rotate, offset, thread )
-    --[[
-        NOTE: Vectors are mutable objects, which means this may have unexpected results if used
-        incorrectly ( applying transform to same vertex multiple times by mistake ).That's why it's
-        per construct, instead of in the global getter function.
-    ]]
-    if isangle( rotate ) and ( rotate.p ~= 0 or rotate.y ~= 0 or rotate.r ~= 0 ) then
-        for i = 1, #verts do
-            vec_rotate( verts[i], rotate )
-        end
-    end
-
-    if isvector( offset ) and ( offset.x ~= 0 or offset.y ~= 0 or offset.z ~= 0 ) then
-        for i = 1, #verts do
-            vec_add( verts[i], offset )
-        end
-    end
-end
-
-local ease = {}
-ease.linear = function( lhs, rhs )
-    return lhs / rhs
-end
-ease.cosine = function( lhs, rhs )
-    return 1 - 0.5 * ( math_cos( ( lhs / rhs ) * math_pi ) + 1 )
-end
-ease.quadratic = function( lhs, rhs )
-    return ( lhs / rhs ) ^ 2
-end
-
-
 -- ERROR
 registerType( "error", function( param, data, threaded, physics )
     local model = simpleton.New()
@@ -1022,8 +1112,8 @@ registerType( "cone", function( param, data, threaded, physics )
     local dy = ( isvector( param.PrimSIZE ) and param.PrimSIZE[2] or 1 ) * 0.5
     local dz = ( isvector( param.PrimSIZE ) and param.PrimSIZE[3] or 1 ) * 0.5
 
-    local tx = map( param.PrimTX or 0, -1, 1, -2, 2 )
-    local ty = map( param.PrimTY or 0, -1, 1, -2, 2 )
+    local tx = util_MapF( param.PrimTX or 0, -1, 1, -2, 2 )
+    local ty = util_MapF( param.PrimTY or 0, -1, 1, -2, 2 )
 
     local model = simpleton.New()
     local verts = model.verts
@@ -1075,7 +1165,7 @@ registerType( "cone", function( param, data, threaded, physics )
         model.convexes = convexes
     end
 
-    transform( verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
+    util_Transform( verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
 
     return model
 end )
@@ -1128,7 +1218,7 @@ registerType( "cube", function( param, data, threaded, physics )
 
     if physics then model.convexes = { model.verts } end
 
-    transform( model.verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
+    util_Transform( model.verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
 
     return model
 end )
@@ -1278,7 +1368,7 @@ registerType( "cube_magic", function( param, data, threaded, physics )
         end
     end
 
-    transform( verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
+    util_Transform( verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
 
     return model
 end )
@@ -1394,7 +1484,7 @@ registerType( "cube_hole", function( param, data, threaded, physics )
         end
     end
 
-    transform( verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
+    util_Transform( verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
 
     return model
 end )
@@ -1497,7 +1587,7 @@ registerType( "cylinder", function( param, data, threaded, physics )
         model.convexes = convexes
     end
 
-    transform( verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
+    util_Transform( verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
 
     return model
 end )
@@ -1517,8 +1607,8 @@ registerType( "pyramid", function( param, data, threaded, physics )
     local dy = ( isvector( param.PrimSIZE ) and param.PrimSIZE[2] or 1 ) * 0.5
     local dz = ( isvector( param.PrimSIZE ) and param.PrimSIZE[3] or 1 ) * 0.5
 
-    local tx = map( param.PrimTX or 0, -1, 1, -2, 2 )
-    local ty = map( param.PrimTY or 0, -1, 1, -2, 2 )
+    local tx = util_MapF( param.PrimTX or 0, -1, 1, -2, 2 )
+    local ty = util_MapF( param.PrimTY or 0, -1, 1, -2, 2 )
 
     local model = simpleton.New()
 
@@ -1541,7 +1631,7 @@ registerType( "pyramid", function( param, data, threaded, physics )
         model.convexes = { model.verts }
     end
 
-    transform( model.verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
+    util_Transform( model.verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
 
     return model
 end )
@@ -1596,7 +1686,7 @@ registerType( "sphere", function( param, data, threaded, physics )
             model, _ = model:Bisect( domePlane, true )
         end
 
-        transform( model.verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
+        util_Transform( model.verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
 
         if physics then
             if subdiv <= 8 then
@@ -1611,7 +1701,7 @@ registerType( "sphere", function( param, data, threaded, physics )
 
                 model.convexes = { convex.verts }
 
-                transform( convex.verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
+                util_Transform( convex.verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
             end
         end
     else
@@ -1624,7 +1714,7 @@ registerType( "sphere", function( param, data, threaded, physics )
 
             model.convexes = { model.verts }
 
-            transform( model.verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
+            util_Transform( model.verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
         end
     end
 
@@ -1680,7 +1770,7 @@ registerType( "torus", function( param, data, threaded, physics )
             model:PushFace( unpack( cap2 ) )
         end
 
-        transform( model.verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
+        util_Transform( model.verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
     end
 
     if physics then
@@ -1713,7 +1803,7 @@ registerType( "torus", function( param, data, threaded, physics )
             end
         end
 
-        transform( pverts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
+        util_Transform( pverts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
     end
 
     return model
@@ -1813,7 +1903,7 @@ registerType( "tube", function( param, data, threaded, physics )
         end
     end
 
-    transform( verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
+    util_Transform( verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
 
     return model
 end )
@@ -1825,7 +1915,7 @@ registerType( "wedge", function( param, data, threaded, physics )
     local dy = ( isvector( param.PrimSIZE ) and param.PrimSIZE[2] or 1 ) * 0.5
     local dz = ( isvector( param.PrimSIZE ) and param.PrimSIZE[3] or 1 ) * 0.5
 
-    local tx = map( param.PrimTX or 0, -1, 1, -2, 2 )
+    local tx = util_MapF( param.PrimTX or 0, -1, 1, -2, 2 )
     local ty = 1 - ( param.PrimTY or 0 )
 
     local model = simpleton.New()
@@ -1870,7 +1960,7 @@ registerType( "wedge", function( param, data, threaded, physics )
         model.convexes = { verts }
     end
 
-    transform( verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
+    util_Transform( verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
 
     return model
 end )
@@ -1882,8 +1972,8 @@ registerType( "wedge_corner", function( param, data, threaded, physics )
     local dy = ( isvector( param.PrimSIZE ) and param.PrimSIZE[2] or 1 ) * 0.5
     local dz = ( isvector( param.PrimSIZE ) and param.PrimSIZE[3] or 1 ) * 0.5
 
-    local tx = map( param.PrimTX or 0, -1, 1, -2, 2 )
-    local ty = map( param.PrimTY or 0, -1, 1, 0, 2 )
+    local tx = util_MapF( param.PrimTX or 0, -1, 1, -2, 2 )
+    local ty = util_MapF( param.PrimTY or 0, -1, 1, 0, 2 )
 
     local model = simpleton.New()
     local verts = model.verts
@@ -1904,7 +1994,7 @@ registerType( "wedge_corner", function( param, data, threaded, physics )
         model.convexes = { verts }
     end
 
-    transform( verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
+    util_Transform( verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
 
     return model
 end )
@@ -1973,11 +2063,13 @@ registerType( "airfoil", function( param, data, threaded, physics )
     local bits = tonumber( param.PrimCSOPT ) or 0
     local csenable = bit.band( bits, 1 ) == 1
 
+    local flip = tobool( param.PrimAFFLIP )
+
     -- path
     local points = 15
 
-    local a0u, a0l = NACA4DIGIT( ease[param.PrimAFINTERP] or ease.linear, points, c0, m, p, t, open )
-    local a1u, a1l = NACA4DIGIT( ease[param.PrimAFINTERP] or ease.linear, points, c1, m, p, t, open, sweep, span, dihedral )
+    local a0u, a0l = NACA4DIGIT( util_Ease.cosine, points, c0, m, p, t, open )
+    local a1u, a1l = NACA4DIGIT( util_Ease.cosine, points, c1, m, p, t, open, sweep, span, dihedral )
 
     local pcount = #a0u         -- point count
     local tcount = pcount * 2   -- upper + lower point count
@@ -2115,11 +2207,18 @@ registerType( "airfoil", function( param, data, threaded, physics )
         if clipped_model_f and clipped_model_r then
             model = simpleton.New()
 
+            if flip then
+                clipped_model_f:Mirror( Vector(), Vector( 0, 1, 0 ) )
+                clipped_model_r:Mirror( Vector(), Vector( 0, 1, 0 ) )
+            end
+
             model:Merge( clipped_model_f )
             model:Merge( clipped_model_r )
 
             if physics then
                 local center = span * ( ypos + ylen * 0.5 )
+                if flip then center = -center end
+
                 local left, right = {}, {}
 
                 for i = 1, #clipped_model_r.verts do
@@ -2147,10 +2246,14 @@ registerType( "airfoil", function( param, data, threaded, physics )
         if physics then
             model.convexes = { model.verts }
         end
+
+        if flip then
+            model:Mirror( Vector(), Vector( 0, 1, 0 ) )
+        end
     end
 
     return model
-end )
+end, { canThread = true } )
 
 
 
@@ -2165,7 +2268,7 @@ end )
 local simpleton
 do
 
-    -- copies and transforms vertex table, offsets face table by ibuffer
+    -- copies and util_Transforms vertex table, offsets face table by ibuffer
     local function copy( self, pos, rot, scale, ibuffer )
         local verts = {}
         local faces = table.Copy( self.faces )
@@ -2487,7 +2590,7 @@ registerType( "rail_slider", function( param, data, thread, physics )
         end
     end
 
-    transform( verts, param.PrimMESHROT, param.PrimMESHPOS, thread )
+    util_Transform( verts, param.PrimMESHROT, param.PrimMESHPOS, thread )
 
     return { verts = verts, faces = faces, convexes = convexes }
 end )

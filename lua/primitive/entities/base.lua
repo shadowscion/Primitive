@@ -73,7 +73,6 @@ end
 function class:EditorCallback( editor, name, val )
 end
 
-
 function class:CanTool( ply, trace, mode, tool, button )
     if Primitive.toolblock[mode] then
         if CLIENT then
@@ -88,13 +87,11 @@ end
 
 
 function class:PrimitiveSetup( initial, args )
-
     self:SetPrimMESHENUMS( bit.bor( 1, 1 ) )
     self:SetPrimMESHUV( 48 )
     self:SetPrimMESHPHYS( true )
 
     self:PrimitiveOnSetup( initial, args )
-
 end
 
 function class:SetupDataTables()
@@ -113,6 +110,10 @@ function class:SetupDataTables()
     self:PrimitiveSetupDataTables()
 end
 
+function class:PrimitiveGetConstructSimple( name )
+    local keys = self:PrimitiveGetKeys()
+    return Primitive.construct.get( name, keys, CLIENT, keys.PrimMESHPHYS )
+end
 
 if SERVER then
 
@@ -345,6 +346,8 @@ if CLIENT then
 
     hook.Add( "HUDPaint", "Primitive_Async_Overlay", function()
         if overlay then
+            if not IsValid( overlay ) then overlay = nil return end
+
             local pos = overlay:GetPos():ToScreen()
             draw.SimpleText( "Generating primitive...", "DermaDefault", pos.x, pos.y, color_white )
         end

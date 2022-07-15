@@ -4,8 +4,7 @@ do
     local class = {}
 
     function class:PrimitiveGetConstruct()
-        local keys = self:PrimitiveGetKeys()
-        return Primitive.construct.get( "airfoil", keys, true, keys.PrimMESHPHYS )
+        return self:PrimitiveGetConstructSimple( "airfoil" )
     end
 
     local helpDST = "Alters the density of vertices toward the leading and trailing edges"
@@ -16,13 +15,13 @@ do
 
     function class:PrimitiveSetupDataTables()
         local category = "airfoil"
-        self:PrimitiveVar( "PrimAFINTERP", "String", { category = category, title = "point distribution", panel = "combo", values = { linear = "linear", cosine = "cosine", quadratic = "quadratic" }, help = helpDST }, true )
         self:PrimitiveVar( "PrimAFM", "Float", { category = category, title = "max camber", panel = "float", min = 0, max = 9.5, help = helpAFM }, true )
         self:PrimitiveVar( "PrimAFP", "Float", { category = category, title = "max camber pos", panel = "float", min = 0, max = 90, help = helpAFP }, true )
         self:PrimitiveVar( "PrimAFT", "Float", { category = category, title = "max thickness", panel = "float", min = 1, max = 40, help = helpAFT }, true )
         self:PrimitiveVar( "PrimAFOPEN", "Bool", { category = category, title = "open trailing edge", panel = "boolean" }, true )
 
         local category = "wing"
+        self:PrimitiveVar( "PrimAFFLIP", "Bool", { category = category, title = "flip", panel = "bool" }, true )
         self:PrimitiveVar( "PrimCHORDR", "Float", { category = category, title = "chord (root)", panel = "float", min = 1, max = 2000, help = helpCHORD }, true )
         self:PrimitiveVar( "PrimCHORDT", "Float", { category = category, title = "chord (tip)", panel = "float", min = 1, max = 2000, help = helpCHORD }, true )
         self:PrimitiveVar( "PrimSPAN", "Float", { category = category, title = "span", panel = "float", min = 1, max = 2000 }, true )
@@ -43,7 +42,6 @@ do
             duplicator.StoreEntityModifier( self, "mass", { Mass = 100 } )
         end
 
-        self:SetPrimAFINTERP( "cosine" )
         self:SetPrimAFM( 2 )
         self:SetPrimAFP( 40 )
         self:SetPrimAFT( 12 )
@@ -57,9 +55,9 @@ do
         self:SetPrimCSYLEN( 0.25 )
         self:SetPrimCSXLEN( 0.5 )
 
-        self:SetPrimDEBUG( bit.bor( 1, 2 ) )
+        --self:SetPrimDEBUG( bit.bor( 1, 2 ) )
         self:SetPrimMESHSMOOTH( 60 )
-        self:SetPrimMESHPHYS( false )
+        self:SetPrimMESHPHYS( true )
     end
 
 
@@ -90,8 +88,7 @@ do
     local class = {}
 
     function class:PrimitiveGetConstruct()
-        local keys = self:PrimitiveGetKeys()
-        return Primitive.construct.get( "rail_slider", keys, true, keys.PrimMESHPHYS )
+        return self:PrimitiveGetConstructSimple( "rail_slider" )
     end
 
 

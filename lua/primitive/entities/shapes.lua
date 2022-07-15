@@ -159,8 +159,7 @@ end
 
 
 function class:PrimitiveGetConstruct()
-    local keys = self:PrimitiveGetKeys()
-    return Primitive.construct.get( keys.PrimTYPE, keys, true, keys.PrimMESHPHYS )
+    return self:PrimitiveGetConstructSimple( self.primitive.keys.PrimTYPE )
 end
 
 
