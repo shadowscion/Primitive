@@ -1,7 +1,7 @@
 
 local class = {}
 
-local typen = { "cone", "cube", "cube_magic", "cube_hole", "cylinder", "dome", "pyramid", "sphere", "torus", "tube", "wedge", "wedge_corner" }
+local typen = { "cone", "cube", "cube_magic", "cube_hole", "cylinder", "dome", "plane", "pyramid", "sphere", "torus", "tube", "wedge", "wedge_corner" }
 local typek, defaults = {}, {}
 
 do
@@ -69,6 +69,12 @@ do
             PrimTX = 0,
             PrimTY = 0,
             PrimTYPE = "generic",
+        },
+        plane = {
+            PrimMESHSMOOTH = 0,
+            PrimSIZE = Vector( 48, 48, 48 ),
+            PrimTY = 0,
+            PrimTYPE = "plane",
         },
         pyramid = {
             PrimMESHSMOOTH = 0,
@@ -187,6 +193,7 @@ if CLIENT then
         { category = "shapes", entity = "primitive_shape", title = "cube_hole", command = "cube_hole 1 48" },
         { category = "shapes", entity = "primitive_shape", title = "cylinder", command = "cylinder 1 48" },
         { category = "shapes", entity = "primitive_shape", title = "dome", command = "dome 1 48" },
+        { category = "shapes", entity = "primitive_shape", title = "plane", command = "plane 1 48" },
         { category = "shapes", entity = "primitive_shape", title = "pyramid", command = "pyramid 1 48" },
         { category = "shapes", entity = "primitive_shape", title = "sphere", command = "sphere 1 48" },
         { category = "shapes", entity = "primitive_shape", title = "torus", command = "torus 1 48" },

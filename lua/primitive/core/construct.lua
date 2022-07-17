@@ -1257,7 +1257,7 @@ simpleton.RegisterPrefab( "slider_blade",
         Vector( -0.5, -0.25, 0.153186 ),
     }
 )
-simpleton.RegisterPrefab( "cube",
+simpleton.RegisterPrefab( "slider_cube",
     {
         1, 5, 6,
         1, 6, 2,
@@ -1872,6 +1872,58 @@ registerType( "dome", function( param, data, threaded, physics )
     return construct_types.sphere.factory( param, data, threaded, physics )
 
 end, { canThread = true, domePlane = { pos = Vector(), normal = Vector( 0, 0, 1 ) } } )
+
+
+-- PLANE
+registerType( "plane", function( param, data, threaded, physics )
+    local dx = ( isvector( param.PrimSIZE ) and param.PrimSIZE[1] or 1 ) * 0.5
+    local dy = ( isvector( param.PrimSIZE ) and param.PrimSIZE[2] or 1 ) * 0.5
+    local dz = 0.5
+
+    local ty = 1 - ( param.PrimTY or 0 )
+
+    local model = simpleton.New()
+    if physics then
+        model.convexes = { model.verts }
+    end
+
+    if ty == 0 then
+        model:PushXYZ( dx, 0, 0 )
+        model:PushXYZ( -dx, dy, 0 )
+        model:PushXYZ( -dx, -dy, 0 )
+
+        if CLIENT then
+            model:PushTriangle( 1, 2, 3 )
+        end
+
+        if physics then
+            model:PushXYZ( dx, 0, -dz )
+            model:PushXYZ( -dx, dy, -dz )
+            model:PushXYZ( -dx, -dy, -dz )
+        end
+    else
+        model:PushXYZ( dx, dy * ty, 0 )
+        model:PushXYZ( dx, -dy * ty, 0 )
+        model:PushXYZ( -dx, dy, 0 )
+        model:PushXYZ( -dx, -dy, 0 )
+
+        if CLIENT then
+            model:PushTriangle( 1, 3, 4 )
+            model:PushTriangle( 1, 4, 2 )
+        end
+
+        if physics then
+            model:PushXYZ( dx, dy * ty, -dz )
+            model:PushXYZ( dx, -dy * ty, -dz )
+            model:PushXYZ( -dx, dy, -dz )
+            model:PushXYZ( -dx, -dy, -dz )
+        end
+    end
+
+    util_Transform( model.verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
+
+    return model
+end )
 
 
 -- PYRAMID
