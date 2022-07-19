@@ -232,7 +232,7 @@ do
         @RETURN:
             either a function or a coroutine that will build the mesh
     --]]
-    function addon.construct.generate( construct, name, param, threaded, physics )
+    function addon.construct.generate( construct, param, threaded, physics )
         if SERVER then threaded = nil end
 
         -- Non-existant construct, error model CODE 1
@@ -240,7 +240,8 @@ do
             return true, errorModel( 1, name )
         end
 
-        name = construct.data.name or "NO_NAME"
+        construct.data.name = construct.data.name or "NO_NAME"
+        local name = construct.data.name
 
         -- Expected yield: true, true, table
         if threaded and construct.data.canThread then
@@ -269,7 +270,7 @@ do
             either a function or a coroutine that will build the mesh
     --]]
     function addon.construct.get( name, param, threaded, physics )
-        return addon.construct.generate( construct_types[name], name, param, threaded, physics )
+        return addon.construct.generate( construct_types[name], param, threaded, physics )
     end
 end
 
