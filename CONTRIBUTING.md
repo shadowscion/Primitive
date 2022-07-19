@@ -4,4 +4,4 @@ This addon adheres to the CFC-Servers Glua styling guidelines found [here](https
 Pull requests will be expected to follow the same guidelines before being considered. 
 
 # Testing
-Due to the nature of custom physics, proper testing seems particularly important. I would like to utilize [GLuaTest])https://github.com/CFC-Servers/GLuaTest) for this. 
+Due to the nature of custom physics, proper testing seems particularly important. I would like to utilize [GLuaTest](https://github.com/CFC-Servers/GLuaTest) for this. 
