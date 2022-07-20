@@ -1,0 +1,15 @@
+{
+	"title"		:	"Primitive",
+	"type"		:	"entity",
+	"tags"		:	[ "build", "fun" ],
+	"description"   :	"Procedurally generate shapes and models in real-time, for building contraptions.",
+	"ignore"	:
+	[
+		"*.svn*",
+		"*.git*",
+		"*.txt",
+		"lua/tests/*",
+		"CONTRIBUTING.md",
+		"README.md"
+	]
+}
