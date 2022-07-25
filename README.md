@@ -1,10 +1,6 @@
 # Primitive
 procedural props for garry's mod
 
-
-
-## EXPECT MAJOR CHANGES UNTIL THIS ADDON IS ON THE WORKSHOP
-## UNTIL THEN, I WILL NOT ENTERTAIN ANY COMPLAINTS ABOUT RUINED BUILDS 
-## FOR NOW, DO NOT USE IT FOR ANYTHING YOU DON'T WANT BROKEN LATER
-
+# Workshop Link
+https://steamcommunity.com/sharedfiles/filedetails/?id=2840295308
 
