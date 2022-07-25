@@ -8,7 +8,7 @@
 		"*.svn*",
 		"*.git*",
 		"*.txt",
-		"workshop_icon.png",
+		"primitive.jpg",
 		"lua/tests/*",
 		"CONTRIBUTING.md",
 		"README.md"
