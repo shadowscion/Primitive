@@ -1,8 +1,8 @@
 
-CreateConVar( "primitive_update_delay", SERVER and 0.25 or 0.015, { FCVAR_ARCHIVE }, "update delay in seconds, lower is faster", 0.0015, 0.5 )
+CreateConVar( "primitive_update_delay", 0.015, { FCVAR_ARCHIVE }, "update delay in seconds, lower is faster", 0.0015, 0.5 )
 CreateConVar( "primitive_thread_runtime", 0.25, { FCVAR_ARCHIVE }, "max thread runtime in seconds, higher is faster", 0.0015, 0.5 )
 
-Primitive = { funcs = {}, classes = {}, toolblock = { makespherical = true } }
+Primitive = { funcs = {}, classes = {}, toolblock = { makespherical = true, advresizer = true, forge = true, poly = true, resizer = true } }
 
 if SERVER then
     AddCSLuaFile( "primitive/load.lua" )
