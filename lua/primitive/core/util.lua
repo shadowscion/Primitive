@@ -38,6 +38,7 @@ if SERVER then
 
         if istable( data ) then
             duplicator.DoGeneric( ent, data )
+            ent.PRIMITIVE_HALT_UPDATE = true
         end
 
         ent:Spawn()

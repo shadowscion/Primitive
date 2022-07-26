@@ -50,8 +50,10 @@ local class = { Type = "anim", Base = "base_anim", Spawnable = false, AdminOnly 
     Primitive.funcs.registerClass( "template", class, spawnlist )
 ]]
 
-function class:PostEntityPaste()
+
+function class:PrimitivePostEntityPaste( ply, ent, createdEntities )
     self:SetPrimDEBUG( 0 )
+
 end
 
 function class:PrimitiveSetupDataTables()
@@ -390,6 +392,7 @@ end
 
 function class:Think()
     if self.primitive.init then
+        if self.PRIMITIVE_HALT_UPDATE then return end
         if SysTime() - self.primitive.init > updateTime:GetFloat() then
             self:PrimitiveReconstruct()
             self.primitive.init = nil
@@ -559,6 +562,18 @@ do
 
             onNotify( self, name, self, self["Get" .. name]( self ) )
 
+        end
+    end
+
+    -- THIS IS BUGGED
+    -- FOR SOME REASON DEFAULT VALUES ARE APPLIED TO THE KEYS TABLE
+    -- THE 0.5s DELAY IS A BANDAID FIX AT BEST
+    function class:PostEntityPaste( ply, ent, createdEntities )
+        self:PrimitivePostEntityPaste( ply, ent, createdEntities )
+
+        if self.PRIMITIVE_HALT_UPDATE then
+            self.PRIMITIVE_HALT_UPDATE = nil
+            self.primitive.init = SysTime() + 0.5
         end
     end
 
