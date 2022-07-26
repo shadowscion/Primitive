@@ -38,6 +38,11 @@ if SERVER then
 
         if istable( data ) then
             duplicator.DoGeneric( ent, data )
+
+            if istable( data.DT ) and isfunction( ent.RestoreNetworkVars ) then -- PA fix...
+                ent:RestoreNetworkVars( data.DT )
+            end
+
             ent.PRIMITIVE_HALT_UPDATE = true
         end
 
