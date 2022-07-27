@@ -2637,8 +2637,8 @@ registerType( "rail_slider", function( param, data, threaded, physics )
     -- flange
     local fbits, getflange = math_floor( tonumber( param.PrimFENUMS ) or 0 )
 
-    local ENUM_FENABLE = 1
-    if bit.band( fbits, ENUM_FENABLE ) == ENUM_FENABLE then
+    local ENUM_FENABLE = bit.bor( 1, 2, 4, 8 )
+    if bit.band( fbits, ENUM_FENABLE ) ~= 0 then
         local fdim
         if double then
             fdim = Vector( cdim.x, cgap - cdim.y, cdim.z * 0.25 )
