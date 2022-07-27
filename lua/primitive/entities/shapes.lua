@@ -10,6 +10,17 @@ do
     end
 
     defaults = {
+        generic = {
+            PrimDT = 4,
+            PrimMAXSEG = 16,
+            PrimMESHSMOOTH = 0,
+            PrimNUMSEG = 16,
+            PrimSIDES = 0,
+            PrimSIZE = Vector( 48, 48, 48 ),
+            PrimSUBDIV = 8,
+            PrimTX = 0,
+            PrimTY = 0,
+        },
         cone = {
             PrimMAXSEG = 16,
             PrimMESHSMOOTH = 45,
@@ -57,18 +68,6 @@ do
             PrimSIZE = Vector( 48, 48, 48 ),
             PrimSUBDIV = 8,
             PrimTYPE = "dome",
-        },
-        generic = {
-            PrimDT = 4,
-            PrimMAXSEG = 16,
-            PrimMESHSMOOTH = 0,
-            PrimNUMSEG = 16,
-            PrimSIDES = 0,
-            PrimSIZE = Vector( 48, 48, 48 ),
-            PrimSUBDIV = 8,
-            PrimTX = 0,
-            PrimTY = 0,
-            PrimTYPE = "generic",
         },
         plane = {
             PrimMESHSMOOTH = 0,
@@ -135,31 +134,18 @@ function class:PrimitiveOnSetup( initial, args )
 
     if defaults[type] then
         self:SetPrimTYPE( type )
-        if tobool( physics ) then self:SetPrimMESHPHYS( tobool( physics ) ) end
-        if tonumber( uv ) then self:SetPrimMESHUV( tonumber( uv ) ) end
-    end
-end
 
-local function resetType( self, type )
-    for k, v in pairs( self:PrimitiveGetKeys() ) do
-        if k == "PrimTYPE" then goto SKIP end
+        for k, v in pairs( defaults.generic ) do
+            local set = defaults[type][k]
+            if set == nil then set = v end
 
-        local value = defaults[type][k]
-        if value == nil then
-            value = defaults.generic[k]
+            if set ~= nil then
+                self["Set" .. k]( self, set )
+            end
         end
 
-        if value == nil then goto SKIP end
-
-        self["Set" .. k]( self, value )
-
-        ::SKIP::
-    end
-end
-
-function class:PrimitivePostNetworkNotify( name, keyval )
-    if SERVER and name == "PrimTYPE" and defaults[keyval] then
-        resetType( self, keyval )
+        if physics ~= nil then self:SetPrimMESHPHYS( tobool( physics ) ) end
+        if tonumber( uv ) then self:SetPrimMESHUV( tonumber( uv ) ) end
     end
 end
 
@@ -209,11 +195,24 @@ if CLIENT then
             end
         end,
         PrimTYPE = function( self, editor, name, val )
-            local edit = self:GetEditingData()
-            local values = defaults[self.primitive.keys.PrimTYPE]
+            if defaults[val] == nil then
+                return
+            end
 
+            local edit = self:GetEditingData()
             for k, row in pairs( editor.rows ) do
-                row:SetVisible( edit[k].global or values[k] ~= nil )
+                row:SetVisible( edit[k].global or defaults[val][k] ~= nil )
+            end
+
+            if self.primitive.keys[name] ~= val then
+                for k, v in pairs( defaults.generic ) do
+                    local set = defaults[val][k]
+                    if set == nil then set = v end
+
+                    if set ~= nil then
+                        self:EditValue( k, tostring( set ) )
+                    end
+                end
             end
 
             editor:InvalidateChildren( true )
