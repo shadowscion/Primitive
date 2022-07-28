@@ -48,9 +48,11 @@ if SERVER then
 
         ent:Spawn()
         ent:Activate()
-        ent:SetVar( "Player", ply )
 
-        ply:AddCount( "Props", ent )
+        if IsValid( ply ) then
+            ent:SetVar( "Player", ply )
+            ply:AddCount( "Props", ent )
+        end
 
         return ent
     end
