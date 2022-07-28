@@ -3,6 +3,67 @@ do
     local class = {}
 
     function class:PrimitiveGetConstruct()
+        return self:PrimitiveGetConstructSimple( "staircase" )
+    end
+
+
+    function class:PrimitiveSetupDataTables()
+        local category = "staircase"
+        self:PrimitiveVar( "PrimSOPT", "Int", { category = category, title = "options", panel = "bitfield", lbl = { "solid" } }, true )
+        self:PrimitiveVar( "PrimSCOUNT", "Int", { category = category, title = "step count", panel = "int", min = 1, max = 32 }, true )
+        self:PrimitiveVar( "PrimSWIDTH", "Float", { category = category, title = "step width", panel = "float", min = 1, max = 1000 }, true )
+        self:PrimitiveVar( "PrimSRISE", "Float", { category = category, title = "rise", panel = "float", min = 1, max = 50 }, true )
+        self:PrimitiveVar( "PrimSRUN", "Float", { category = category, title = "run", panel = "float", min = 1, max = 50 }, true )
+
+    end
+
+
+    function class:PrimitiveOnSetup( initial, args )
+        if initial and SERVER then
+            duplicator.StoreEntityModifier( self, "mass", { Mass = 100 } )
+        end
+
+        self:SetPrimSCOUNT( 16 )
+        self:SetPrimSRISE( 7 )
+        self:SetPrimSRUN( 11 )
+        self:SetPrimSWIDTH( 48 )
+
+        self:SetPrimMESHPHYS( true )
+
+        local physics, uv = unpack( args )
+
+        if physics ~= nil then self:SetPrimMESHPHYS( tobool( physics ) ) end
+        if tonumber( uv ) then self:SetPrimMESHUV( tonumber( uv ) ) end
+    end
+
+
+    local spawnlist
+    if CLIENT then
+        spawnlist = {
+            { category = "physics", entity = "primitive_staircase", title = "staircase", command = "1 48" },
+        }
+
+        local callbacks = {
+            EDITOR_OPEN = function ( self, editor, name, val )
+                for k, cat in pairs( editor.categories ) do
+                    if k == "debug" or k == "mesh" or k == "model" then cat:ExpandRecurse( false ) else cat:ExpandRecurse( true ) end
+                end
+            end,
+        }
+
+        function class:EditorCallback( editor, name, val )
+            if callbacks[name] then callbacks[name]( self, editor, name, val ) end
+        end
+    end
+
+    Primitive.funcs.registerClass( "staircase", class, spawnlist )
+end
+
+
+do
+    local class = {}
+
+    function class:PrimitiveGetConstruct()
         return self:PrimitiveGetConstructSimple( "airfoil" )
     end
 

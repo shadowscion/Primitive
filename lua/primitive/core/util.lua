@@ -39,11 +39,11 @@ if SERVER then
         if istable( data ) then
             duplicator.DoGeneric( ent, data )
 
-            -- if istable( data.DT ) and isfunction( ent.RestoreNetworkVars ) then
-            --     ent:RestoreNetworkVars( data.DT )
-            -- end
-
-            ent.PRIMITIVE_HALT_UPDATE = true
+            -- parenting sometimes messes up the physics objects on larger dupes, this prevents those primitives
+            -- from updating until the entire dupe is finished pasting
+            if istable( data.BuildDupeInfo ) and isnumber( data.BuildDupeInfo.DupeParentID ) then
+                ent.PRIMITIVE_HALT_UPDATE = true
+            end
         end
 
         ent:Spawn()
