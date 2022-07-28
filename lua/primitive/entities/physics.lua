@@ -23,6 +23,7 @@ do
             duplicator.StoreEntityModifier( self, "mass", { Mass = 100 } )
         end
 
+        self:SetPrimSOPT( 1 )
         self:SetPrimSCOUNT( 16 )
         self:SetPrimSRISE( 7 )
         self:SetPrimSRUN( 11 )
