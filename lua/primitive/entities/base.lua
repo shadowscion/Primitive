@@ -436,7 +436,22 @@ do
 
     local typefilter = {}
 
+    local inf = math.huge
+    local nan = tostring( 0 / 0 )
+
+    local function isinf( n )
+        if n == inf then return true end
+        if n == -inf then return true end
+        return false
+    end
+
+    local function isnan( n )
+        if isinf( n ) then return true end
+        return tostring( n ) == nan
+    end
+
     typefilter.Float = function( self, data, new )
+        if isnan( new ) then return true, 0 end
         if data.min and new < data.min then return true, data.min end
         if data.max and new > data.max then return true, data.max end
 
@@ -451,6 +466,10 @@ do
     end
 
     typefilter.Vector = function( self, data, new )
+        if isnan( new.x ) then new.x = 0 end
+        if isnan( new.y ) then new.y = 0 end
+        if isnan( new.z ) then new.z = 0 end
+
         if data.min then
             if new.x < data.min.x then new.x = data.min.x end
             if new.y < data.min.y then new.y = data.min.y end
@@ -465,6 +484,24 @@ do
         return false, new
     end
 
+    typefilter.Angle = function( self, data, new )
+        if isnan( new.p ) then new.p = 0 end
+        if isnan( new.y ) then new.y = 0 end
+        if isnan( new.r ) then new.r = 0 end
+
+        if data.min then
+            if new.p < data.min.p then new.p = data.min.p end
+            if new.y < data.min.y then new.y = data.min.y end
+            if new.r < data.min.r then new.r = data.min.r end
+        end
+        if data.max then
+            if new.p > data.max.p then new.p = data.max.p end
+            if new.y > data.max.y then new.y = data.max.y end
+            if new.r > data.max.r then new.r = data.max.r end
+        end
+
+        return false, new
+    end
 
     local function screenPrimitiveVar( self, name, new )
         local edit = self:GetEditingData()
