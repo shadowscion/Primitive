@@ -1,12 +1,19 @@
 
 
 local CreateEntity
+
+local function capitalize( s )
+    return string.upper( string.sub( s, 1, 1 ) ) .. string.sub( s, 2 )
+end
+
 function Primitive.funcs.registerClass( name, class, spawnlist )
     class.Type = "anim"
     class.Base = "primitive_base"
 
     class.Name = string.lower( name )
     if not string.StartWith( class.Name, "primitive_" ) then class.Name = "primitive_" .. class.Name end
+
+    class.PrintName = string.gsub( string.gsub( class.Name, "_", " " ), "%a[^%s]*", capitalize )
 
     if class.AdminOnly == nil then class.AdminOnly = false end
 
@@ -19,6 +26,8 @@ function Primitive.funcs.registerClass( name, class, spawnlist )
             return CreateEntity( class.Name, ply, data )
         end, "Data" )
     else
+        killicon.AddAlias( class.Name, "prop_physics" )
+
         hook.Run( "Primitive_RefreshMenu" )
     end
 end

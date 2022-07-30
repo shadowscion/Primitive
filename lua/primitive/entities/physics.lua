@@ -76,9 +76,9 @@ do
 
     function class:PrimitiveSetupDataTables()
         local category = "airfoil"
-        self:PrimitiveVar( "PrimAFM", "Float", { category = category, title = "max camber", panel = "float", min = 0, max = 9.5, help = helpAFM }, true )
-        self:PrimitiveVar( "PrimAFP", "Float", { category = category, title = "max camber pos", panel = "float", min = 0, max = 90, help = helpAFP }, true )
-        self:PrimitiveVar( "PrimAFT", "Float", { category = category, title = "max thickness", panel = "float", min = 1, max = 40, help = helpAFT }, true )
+        self:PrimitiveVar( "PrimAFM", "Float", { category = category, title = "max camber (M)", panel = "float", min = 0, max = 9.5, help = helpAFM }, true )
+        self:PrimitiveVar( "PrimAFP", "Float", { category = category, title = "max camber pos (P)", panel = "float", min = 0, max = 90, help = helpAFP }, true )
+        self:PrimitiveVar( "PrimAFT", "Float", { category = category, title = "max thickness (T)", panel = "float", min = 1, max = 40, help = helpAFT }, true )
         self:PrimitiveVar( "PrimAFOPEN", "Bool", { category = category, title = "open trailing edge", panel = "boolean" }, true )
 
         local category = "wing"
@@ -106,17 +106,16 @@ do
         self:SetPrimAFM( 2 )
         self:SetPrimAFP( 40 )
         self:SetPrimAFT( 12 )
-        self:SetPrimCHORDR( 200 )
+        self:SetPrimCHORDR( 100 )
         self:SetPrimCHORDT( 100 )
-        self:SetPrimSPAN( 150 )
-        self:SetPrimSWEEP( -18 )
-        self:SetPrimDIHEDRAL( -2 )
+        self:SetPrimSPAN( 200 )
+        self:SetPrimSWEEP( 0 )
+        self:SetPrimDIHEDRAL( 0 )
 
         self:SetPrimCSYPOS( 0.5 )
         self:SetPrimCSYLEN( 0.25 )
         self:SetPrimCSXLEN( 0.5 )
 
-        --self:SetPrimDEBUG( bit.bor( 1, 2 ) )
         self:SetPrimMESHSMOOTH( 60 )
         self:SetPrimMESHPHYS( true )
     end
