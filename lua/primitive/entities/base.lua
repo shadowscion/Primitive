@@ -1,59 +1,9 @@
 
-local class = { Type = "anim", Base = "base_anim", Spawnable = false, AdminOnly = true }
-
---[[
-    local class = {}
-
-    local construct = { data = { name = "template" } }
-    construct.factory = function( param, data, thread, physics )
-        local verts, faces, convexes
-
-        return { verts = verts, faces = faces, convexes = convexes }
-    end
-
-    function class:PrimitiveGetConstruct()
-        local keys = self:PrimitiveGetKeys()
-        return Primitive.construct.generate( construct, "template", keys, true, keys.PrimMESHPHYS )
-    end
-
-    function class:PrimitiveSetupDataTables()
-    end
-
-    function class:PrimitiveOnSetup( initial, args )
-        if initial and SERVER then
-            duplicator.StoreEntityModifier( self, "mass", { Mass = 100 } )
-        end
-
-        self:SetPrimDEBUG( bit.bor( 1, 2 ) )
-        self:SetPrimMESHPHYS( false )
-    end
-
-    local spawnlist
-    if CLIENT then
-        spawnlist = {
-            { category = "generic", entity = "primitive_template", title = "template", command = "" },
-        }
-
-        local callbacks = {
-            EDITOR_OPEN = function ( self, editor, name, val )
-                for k, cat in pairs( editor.categories ) do
-                    if k == "debug" or k == "mesh" or k == "model" then cat:ExpandRecurse( false ) else cat:ExpandRecurse( true ) end
-                end
-            end,
-        }
-
-        function class:EditorCallback( editor, name, val )
-            if callbacks[name] then callbacks[name]( self, editor, name, val ) end
-        end
-    end
-
-    Primitive.funcs.registerClass( "template", class, spawnlist )
-]]
+local class = { Type = "anim", Base = "base_anim", Spawnable = false, AdminOnly = true, IsPrimitive = true }
 
 
 function class:PrimitivePostEntityPaste( ply, ent, createdEntities )
     self:SetPrimDEBUG( 0 )
-
 end
 
 function class:PrimitiveSetupDataTables()
@@ -73,18 +23,6 @@ end
 
 
 function class:EditorCallback( editor, name, val )
-end
-
-function class:CanTool( ply, trace, mode, tool, button )
-    if Primitive.toolblock[mode] then
-        if CLIENT then
-            chat.AddText( string.format( "'%s' cannot be used on %s", mode, self ) )
-        end
-
-        return false
-    end
-
-    return true
 end
 
 

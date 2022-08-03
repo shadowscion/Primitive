@@ -1,5 +1,26 @@
 
 
+local toolblock = Primitive.toolblock
+
+hook.Add( "CanTool", "Primitive_ToolBlock", function( ply, tr, toolname, tool, button )
+    -- return nil if not a blocked tool
+    if not toolblock[toolname] then return end
+
+    local ent = tr.Entity
+
+    -- return nil if not a valid primitive entity
+    if not ent or not ent.IsPrimitive or not IsValid( ent ) then return end
+    if not scripted_ents.IsBasedOn( ent:GetClass(), "primitive_base" ) then return end
+
+    -- return false to block the tool
+    if CLIENT and IsValid( ply ) then
+        chat.AddText( string.format( "'%s' cannot be used on %s", toolname, ent ) )
+    end
+
+    return false
+end )
+
+
 local CreateEntity
 
 local function capitalize( s )
