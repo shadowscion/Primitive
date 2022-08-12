@@ -34,6 +34,7 @@ function class:PrimitiveSetup( initial, args )
     self:PrimitiveOnSetup( initial, args )
 end
 
+
 function class:SetupDataTables()
     self.primitive = { keys = {}, vdt = { index = {}, order = 0 }, init = SysTime() }
 
@@ -50,10 +51,12 @@ function class:SetupDataTables()
     self:PrimitiveSetupDataTables()
 end
 
+
 function class:PrimitiveGetConstructSimple( name )
     local keys = self:PrimitiveGetKeys()
     return Primitive.construct.get( name, keys, CLIENT, keys.PrimMESHPHYS )
 end
+
 
 if SERVER then
 
@@ -160,6 +163,28 @@ if SERVER then
 
 end
 
+local function rescale( self, scalar )
+    scalar = math.Clamp( math.abs( scalar ), 0, 1 )
+    if scalar == 0 or scalar == 1 then return end
+
+    local convexes = self:GetPhysicsObject():GetMeshConvexes()
+
+    for i = 1, #convexes do
+        local convex = convexes[i]
+
+        for j = 1, #convex do
+            local vertex = convex[j].pos
+
+            vertex.x = vertex.x * scalar
+            vertex.y = vertex.y * scalar
+            vertex.z = vertex.z * scalar
+
+            convex[j] = vertex
+        end
+    end
+
+    return convexes
+end
 
 function class:PrimitiveRebuildPhysics( result )
     local props
@@ -178,6 +203,13 @@ function class:PrimitiveRebuildPhysics( result )
             Primitive.funcs.log( self, "invalid convexes" )
         end
     end
+
+    -- if cphysics then
+    --     local scaled = rescale( self, self:GetModelScale() )
+    --     if scaled ~= nil then
+    --         cphysics = self:PhysicsInitMultiConvex( scaled )
+    --     end
+    -- end
 
     if cphysics then
         self.m_bCustomCollisions = true
