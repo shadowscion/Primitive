@@ -17,12 +17,14 @@ end
 
 if SERVER then
     AddCSLuaFile( "core/util.lua" )
+    AddCSLuaFile( "core/tool.lua" )
     AddCSLuaFile( "core/menu.lua" )
     AddCSLuaFile( "core/construct.lua" )
     AddCSLuaFile( "editor/editor.lua" )
 end
 
 include( "core/util.lua" )
+include( "core/tool.lua" )
 include( "core/menu.lua" )
 include( "core/construct.lua" )
 load( "primitive/entities/", true )
