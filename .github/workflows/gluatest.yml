@@ -1,6 +1,9 @@
 name: GLuaTest Runner
 
 on:
+  push:
+    paths:
+      - 'lua/**'
   pull_request:
 
 jobs:
