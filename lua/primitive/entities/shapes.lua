@@ -10,6 +10,18 @@ do
     end
 
     defaults = {
+        -- greeble_plate = {
+        --     PrimDT = 4,
+        --     PrimMAXSEG = 16,
+        --     PrimMESHSMOOTH = 0,
+        --     PrimNUMSEG = 16,
+        --     PrimSIDES = 0,
+        --     PrimSIZE = Vector( 48, 48, 48 ),
+        --     PrimSUBDIV = 8,
+        --     PrimTX = 0,
+        --     PrimTY = 0,
+        --     PrimTYPE = "greeble_plate",
+        -- },
         generic = {
             PrimDT = 4,
             PrimMAXSEG = 16,
@@ -186,6 +198,7 @@ if CLIENT then
         { category = "shapes", entity = "primitive_shape", title = "tube", command = "tube 1 48" },
         { category = "shapes", entity = "primitive_shape", title = "wedge", command = "wedge 1 48" },
         { category = "shapes", entity = "primitive_shape", title = "wedge_corner", command = "wedge_corner 1 48" },
+        --{ category = "shapes", entity = "primitive_shape", title = "greeble_plate", command = "greeble_plate 1 48" },
     }
 
     local callbacks = {
@@ -226,3 +239,37 @@ end
 
 
 Primitive.funcs.registerClass( "shape", class, spawnlist )
+
+
+--[[
+-- GREEBLE_PLATE
+local sharedRandom = util.SharedRandom
+
+registerType( "greeble_plate", function( param, data, threaded, physics )
+    local model = simpleton.New()
+    local verts = model.verts
+
+    if physics then
+        model.convexes = {}
+    end
+
+    local pos = Vector()
+    local ang = Angle()
+    local scale = Vector( 12, 12, 12 )
+
+    for x = 0, 15 do
+        pos.x = x * scale.x
+
+        for y = 0, 15 do
+            pos.y = y * scale.y
+            pos.z = sharedRandom( ( x + 1 ) * ( y + 1 ), -scale.z * 0.5, scale.z * 0.5 )
+
+            model:PushPrefab( "cube", pos, ang, scale, CLIENT, model.convexes )
+        end
+    end
+
+    util_Transform( model.verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
+
+    return model
+end )
+]]
