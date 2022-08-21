@@ -586,6 +586,27 @@ do
 
 
     --[[
+        @FUNCTION: simpleton:PushFaceTable
+
+        @DESCRIPTION: Triangulates a variable number of indices and adds each triplet to the index table.
+                      NOTE, this creates a triangle fan, which only works for a convex face.
+        @PARAMETERS:
+            [table] -- face index table
+
+        @RETURN:
+    --]]
+    function meta:PushFaceTable( f )
+        local a, b, c = f[1], f[2]
+
+        for i = 3, #f do
+            c = f[i]
+            self:PushTriangle( a, b, c )
+            b = c
+        end
+    end
+
+
+    --[[
         @FUNCTION: simpleton:PushVertex
 
         @DESCRIPTION: Add a single vertex to the vertex table
@@ -2798,3 +2819,5 @@ registerType( "staircase", function( param, data, threaded, physics )
 
     return model
 end )
+
+

@@ -266,300 +266,296 @@ do
         and unfortunately for now, generation is too expensive to include in the addon
     ]]
 
-    local class = { AdminOnly = false }
+    do
+        local class = {}
 
-    local Vector = Vector
-    local math, table, rawset, rawget =
-          math, table, rawset, rawget
-
-    local rotateVec = Vector().Rotate
-
-    local function curvePointXY( radius, dist )
-        local t = ( math.sqrt( dist * dist - radius * radius ) / radius ) - math.acos( radius / dist )
-        return dist * math.cos( t ), dist * math.sin( t )
-    end
-
-    local function curvePointW( x, y, dist )
-        local len = math.sqrt( x * x + y * y )
-        return ( x / len ) * dist, ( y / len ) * dist
-    end
-
-    local function curveCenterXY( numTeeth, baseRadius, pitchDiameter )
-        local x, y = curvePointXY( baseRadius, pitchDiameter * 0.5 )
-
-        local a = -math.atan( y / x )
-        local l = ( ( -math.pi * 2 ) / ( numTeeth * 2 ) ) * 0.5
-
-        return math.cos( a + l ), math.sin( a + l )
-    end
-
-    local function curvePoints( numTeeth, detail, height, pitchDiameter, baseDiameter, tipDiameter, rootDiameter )
-        local baseRadius = baseDiameter * 0.5
-
-        local cx, cy = curveCenterXY( numTeeth, baseRadius, pitchDiameter )      -- involute center
-        local curveS = ( ( tipDiameter - baseDiameter ) * 0.5 ) / ( detail - 1 ) -- involute step
-        local curveR = baseRadius                                                -- involute radius
-
-        local dist = ( baseDiameter ~= rootDiameter ) and ( rootDiameter * 0.5 )
-        local curveP = {}
-
-        local ibuffer = detail * 2 + 1
-
-        for i = 1, detail do
-            local x, y = curvePointXY( baseRadius, curveR )
-            curveR = curveR + curveS
-
-            local px = x * cx - y * cy
-            local py = x * cy + y * cx
-
-            curveP[i] = Vector( px, py, height )
-            curveP[ibuffer - i] = Vector( px, -py, height )
+        function class:PrimitiveGetConstruct()
+            return self:PrimitiveGetConstructSimple( "gear" )
         end
 
-        if dist then
-            local rx, ry = curvePointW( curveP[1].x, curveP[1].y, dist )
 
-            table.insert( curveP, 1, Vector( rx, ry, height ) )
-            table.insert( curveP, Vector( rx, -ry, height ) )
+        function class:PrimitiveSetupDataTables()
+            self:PrimitiveVar( "PrimCOUNT", "Int", { category = "gear", title = "tooth count", panel = "int", min = 3, max = 60 }, true )
+            self:PrimitiveVar( "PrimMODULE", "Float", { category = "gear", title = "module", panel = "float", min = 1, max = 50 }, true )
+            self:PrimitiveVar( "PrimANGLE", "Float", { category = "gear", title = "pressure angle", panel = "float", min = 1, max = 45 }, true )
+            self:PrimitiveVar( "PrimHEIGHT", "Float", { category = "gear", title = "height", panel = "float", min = 1, max = 1000 }, true )
         end
 
-        return curveP
-    end
 
-    local buildGear
-
-    if CLIENT then
-
-        --[[
-
-            the only reason these are split by realm is to avoid all the boolean comparisons in the nested loops
-            for face generation
-
-        ]]
-
-        function buildGear( curveP, curveN, numTeeth, verts, faces, convexes, thread )
-            local toothAngle = Angle()
-            local toothAngleStep = 360 / numTeeth
-
-            local faceUpperCap = {}
-            local faceLowerCap = {}
-
-            for i = 0, numTeeth - 1 do
-                toothAngle.y = toothAngleStep * i
-
-                local vbuffer = #verts
-                local ibuffer = curveN * i
-
-                local faceUpper = {}
-                local faceLower = {}
-
-                local convex
-                if convexes then
-                    convex = {}
-                end
-
-                local islast = i == numTeeth - 1
-                local isnext = i ~= 0
-
-                for j = 1, curveN do
-                    local pointUpper = Vector( curveP[j] )
-                    rotateVec( pointUpper, toothAngle )
-
-                    local pointLower = Vector( pointUpper.x, pointUpper.y, -pointUpper.z )
-
-                    local idUpper = vbuffer + j
-                    local idLower = vbuffer + j + curveN
-
-                    verts[idUpper] = pointUpper
-                    verts[idLower] = pointLower
-
-                    faceUpper[j] = idUpper
-                    faceLower[curveN - j + 1] = idLower
-
-                    if j < curveN then
-                        faces[#faces + 1] = { idUpper, idUpper + curveN, idUpper + curveN + 1, idUpper + 1 }
-
-                        if j == 1 then
-                            faceUpperCap[#faceUpperCap + 1] = idUpper
-                            faceUpperCap[#faceUpperCap + 1] = idUpper + curveN - 1
-                            faceLowerCap[#faceLowerCap + 1] = idLower
-                            faceLowerCap[#faceLowerCap + 1] = idLower + curveN - 1
-
-                            if isnext then
-                                faces[#faces + 1] = { idLower, idUpper, idUpper - curveN - 1, idUpper - 1 }
-                            end
-                        end
-                    elseif islast then
-                        faces[#faces + 1] = { curveN + 1, 1, idUpper, idLower }
-                    end
-
-                    if convexes then
-                        convex[j] = pointUpper
-                        convex[j + curveN] = pointLower
-
-                        if j == 1 or j == curveN then
-                            local circle = convexes[1]
-                            circle[#circle + 1] = verts[idUpper]
-                            circle[#circle + 1] = verts[idLower]
-                        end
-                    end
-                end
-
-                faces[#faces + 1] = faceUpper
-                faces[#faces + 1] = faceLower
-
-                if convexes then
-                    convexes[#convexes + 1] = convex
-                end
+        function class:PrimitiveOnSetup( initial, args )
+            if initial and SERVER then
+                duplicator.StoreEntityModifier( self, "mass", { Mass = 100 } )
+                duplicator.StoreBoneModifier( self, 0, "physprops", { GravityToggle = true, Material = "gmod_ice" } )
             end
 
-            faceLowerCap = table.Reverse( faceLowerCap )
-            faces[#faces + 1] = faceUpperCap
-            faces[#faces + 1] = faceLowerCap
+            self:SetPrimMESHPHYS( true )
 
-            return verts, faces, convexes
+            self:SetPrimCOUNT( 20 )
+            self:SetPrimMODULE( 7 )
+            self:SetPrimANGLE( 20 )
+            self:SetPrimHEIGHT( 12 )
         end
 
-    else
 
-        function buildGear( curveP, curveN, numTeeth, verts, convexes, thread )
-            local toothAngle = Angle()
-            local toothAngleStep = 360 / numTeeth
+        local spawnlist
+        if CLIENT then
+            class.baseMaterial = Material( "metal6" )
 
-            for i = 0, numTeeth - 1 do
-                toothAngle.y = toothAngleStep * i
+            spawnlist = {
+                { category = "physics", entity = "primitive_gear", title = "gear", command = "" },
+            }
 
-                local vbuffer = #verts
-                local ibuffer = curveN * i
-
-                local convex
-                if convexes then
-                    convex = {}
-                end
-
-                local islast = i == numTeeth - 1
-                local isnext = i ~= 0
-
-                for j = 1, curveN do
-                    local pointUpper = Vector( curveP[j] )
-                    rotateVec( pointUpper, toothAngle )
-
-                    local pointLower = Vector( pointUpper.x, pointUpper.y, -pointUpper.z )
-
-                    local idUpper = vbuffer + j
-                    local idLower = vbuffer + j + curveN
-
-                    verts[idUpper] = pointUpper
-                    verts[idLower] = pointLower
-
-                    if convexes then
-                        convex[j] = pointUpper
-                        convex[j + curveN] = pointLower
-
-                        if j == 1 or j == curveN then
-                            local circle = convexes[1]
-                            circle[#circle + 1] = verts[idUpper]
-                            circle[#circle + 1] = verts[idLower]
-                        end
+            local callbacks = {
+                EDITOR_OPEN = function ( self, editor, name, val )
+                    for k, cat in pairs( editor.categories ) do
+                        if k == "debug" or k == "mesh" or k == "model" then cat:ExpandRecurse( false ) else cat:ExpandRecurse( true ) end
                     end
-                end
+                end,
+            }
 
-                if convexes then
-                    convexes[#convexes + 1] = convex
-                end
+            function class:EditorCallback( editor, name, val )
+                if callbacks[name] then callbacks[name]( self, editor, name, val ) end
             end
-
-            return verts, convexes
         end
 
+        Primitive.funcs.registerClass( "gear", class, spawnlist )
     end
 
+    do
 
-    local construct = { name = "gear", data = { canThread = true } }
-    construct.factory = function( param, data, thread, physics )
-        local verts, faces, convexes
+        local function curvePointXY( radius, dist )
+            local t = ( math_sqrt( dist * dist - radius * radius ) / radius ) - math_acos( radius / dist )
+            return dist * math_cos( t ), dist * math_sin( t )
+        end
 
-        -- gear parameters
-        local numTeeth = math.Clamp( tonumber( param.PrimCOUNT ) or 20, 3, 60 )
-        local module = math.Clamp( tonumber( param.PrimMODULE ) or 1, 1, 50 )
-        local gearHeight = math.Clamp( tonumber( param.PrimHEIGHT ) or 1, 1, 1000 ) * 0.5
-        local pressureAngle = math.Clamp( tonumber( param.PrimANGLE ) or 20, 0, 45 )
+        local function curvePointW( x, y, dist )
+            local len = math_sqrt( x * x + y * y )
+            return ( x / len ) * dist, ( y / len ) * dist
+        end
 
-        -- gear setup
-        local toothDetail = SERVER and 2 or 4
-        local addendum = module
-        local dedendum = module * 1.25
-        local pitchDiameter = module * numTeeth                                                              -- tooth mid point
-        local rootDiameter = pitchDiameter - dedendum * 2                                                    -- tooth start point
-        local tipDiameter = pitchDiameter + addendum * 2                                                     -- tooth end point
-        local baseDiameter = math.max( rootDiameter, pitchDiameter * math.cos( math.rad( pressureAngle ) ) ) -- involute start point
+        local function curveCenterXY( numTeeth, baseRadius, pitchDiameter )
+            local x, y = curvePointXY( baseRadius, pitchDiameter * 0.5 )
 
-        -- gear profile curve
-        local curveP = curvePoints( numTeeth, toothDetail, gearHeight, pitchDiameter, baseDiameter, tipDiameter, rootDiameter )
-        local curveN = #curveP
+            local a = -math_atan( y / x )
+            local l = ( ( -math_pi * 2 ) / ( numTeeth * 2 ) ) * 0.5
 
-        -- gear profile array
-        local verts, faces, convexes
+            return math_cos( a + l ), math_sin( a + l )
+        end
+
+        local function curvePoints( numTeeth, detail, height, pitchDiameter, baseDiameter, tipDiameter, rootDiameter )
+            local baseRadius = baseDiameter * 0.5
+
+            local cx, cy = curveCenterXY( numTeeth, baseRadius, pitchDiameter )      -- involute center
+            local curveS = ( ( tipDiameter - baseDiameter ) * 0.5 ) / ( detail - 1 ) -- involute step
+            local curveR = baseRadius                                                -- involute radius
+
+            local dist = ( baseDiameter ~= rootDiameter ) and ( rootDiameter * 0.5 )
+            local curveP = {}
+
+            local ibuffer = detail * 2 + 1
+
+            for i = 1, detail do
+                local x, y = curvePointXY( baseRadius, curveR )
+                curveR = curveR + curveS
+
+                local px = x * cx - y * cy
+                local py = x * cy + y * cx
+
+                curveP[i] = Vector( px, py, height )
+                curveP[ibuffer - i] = Vector( px, -py, height )
+            end
+
+            if dist then
+                local rx, ry = curvePointW( curveP[1].x, curveP[1].y, dist )
+
+                table_insert( curveP, 1, Vector( rx, ry, height ) )
+                table_insert( curveP, Vector( rx, -ry, height ) )
+            end
+
+            return curveP
+        end
+
+        local generateGear
 
         if CLIENT then
-            verts, faces, convexes = buildGear( curveP, curveN, numTeeth, {}, {}, physics and { {} }, thread )
-        else
-            verts, convexes = buildGear( curveP, curveN, numTeeth, {}, physics and { {} }, thread )
-        end
 
-        return { verts = verts, faces = faces, convexes = convexes }
-    end
+            function generateGear( model, threaded, curveP, curveN, numTeeth )
+                local toothAngle = Angle()
+                local toothAngleStep = 360 / numTeeth
 
+                local faceUpperCap = {}
+                local faceLowerCap = {}
 
-    function class:PrimitiveGetConstruct()
-        local keys = self:PrimitiveGetKeys()
-        return Primitive.construct.generate( construct, "gear", keys, true, keys.PrimMESHPHYS )
-    end
+                local verts = model.verts
+                local convexes = model.convexes
 
-    function class:PrimitiveSetupDataTables()
-        self:PrimitiveVar( "PrimCOUNT", "Int", { category = "gear", title = "tooth count", panel = "int", min = 3, max = 60 }, true )
-        self:PrimitiveVar( "PrimMODULE", "Float", { category = "gear", title = "module", panel = "float", min = 1, max = 50 }, true )
-        self:PrimitiveVar( "PrimANGLE", "Float", { category = "gear", title = "pressure angle", panel = "float", min = 1, max = 45 }, true )
-        self:PrimitiveVar( "PrimHEIGHT", "Float", { category = "gear", title = "height", panel = "float", min = 1, max = 1000 }, true )
-    end
+                for i = 0, numTeeth - 1 do
+                    toothAngle.y = toothAngleStep * i
 
+                    local vbuffer = #verts
+                    local ibuffer = curveN * i
 
-    function class:PrimitiveOnSetup( initial, args )
-        if initial and SERVER then
-            duplicator.StoreEntityModifier( self, "mass", { Mass = 100 } )
-            duplicator.StoreBoneModifier( self, 0, "physprops", { GravityToggle = true, Material = "gmod_ice" } )
-        end
+                    local faceUpper = {}
+                    local faceLower = {}
 
-        self:SetPrimCOUNT( 20 )
-        self:SetPrimMODULE( 7 )
-        self:SetPrimANGLE( 20 )
-        self:SetPrimHEIGHT( 12 )
-    end
+                    local convex
+                    if convexes then
+                        convex = {}
+                    end
 
+                    local islast = i == numTeeth - 1
+                    local isnext = i ~= 0
 
-    local spawnlist
-    if CLIENT then
-        class.baseMaterial = Material( "metal6" )
+                    for j = 1, curveN do
+                        local pointUpper = Vector( curveP[j] )
+                        vec_rotate( pointUpper, toothAngle )
 
-        spawnlist = {
-            { category = "physics", entity = "primitive_gear", title = "gear", command = "" },
-        }
+                        local pointLower = Vector( pointUpper.x, pointUpper.y, -pointUpper.z )
 
-        local callbacks = {
-            EDITOR_OPEN = function ( self, editor, name, val )
-                for k, cat in pairs( editor.categories ) do
-                    if k == "debug" or k == "mesh" or k == "model" then cat:ExpandRecurse( false ) else cat:ExpandRecurse( true ) end
+                        local idUpper = vbuffer + j
+                        local idLower = vbuffer + j + curveN
+
+                        verts[idUpper] = pointUpper
+                        verts[idLower] = pointLower
+
+                        faceUpper[j] = idUpper
+                        faceLower[curveN - j + 1] = idLower
+
+                        if j < curveN then
+                            model:PushFace( idUpper, idUpper + curveN, idUpper + curveN + 1, idUpper + 1 )
+
+                            if j == 1 then
+                                faceUpperCap[#faceUpperCap + 1] = idUpper
+                                faceUpperCap[#faceUpperCap + 1] = idUpper + curveN - 1
+                                faceLowerCap[#faceLowerCap + 1] = idLower
+                                faceLowerCap[#faceLowerCap + 1] = idLower + curveN - 1
+
+                                if isnext then
+                                    model:PushFace( idLower, idUpper, idUpper - curveN - 1, idUpper - 1 )
+                                end
+                            end
+                        elseif islast then
+                            model:PushFace( curveN + 1, 1, idUpper, idLower )
+                        end
+
+                        if convexes then
+                            convex[j] = pointUpper
+                            convex[j + curveN] = pointLower
+
+                            if j == 1 or j == curveN then
+                                local circle = convexes[1]
+                                circle[#circle + 1] = verts[idUpper]
+                                circle[#circle + 1] = verts[idLower]
+                            end
+                        end
+
+                        if threaded and ( i % 30 == 0 ) then coroutine_yield( false ) end
+                    end
+
+                    model:PushFaceTable( faceUpper )
+                    model:PushFaceTable( faceLower )
+
+                    if convexes then
+                        convexes[#convexes + 1] = convex
+                    end
                 end
-            end,
-        }
 
-        function class:EditorCallback( editor, name, val )
-            if callbacks[name] then callbacks[name]( self, editor, name, val ) end
+                faceLowerCap = table.Reverse( faceLowerCap )
+
+                model:PushFaceTable( faceUpperCap )
+                model:PushFaceTable( faceLowerCap )
+            end
+
+        else
+
+            function generateGear( model, threaded, curveP, curveN, numTeeth )
+                local toothAngle = Angle()
+                local toothAngleStep = 360 / numTeeth
+
+                local verts = model.verts
+                local convexes = model.convexes
+
+                for i = 0, numTeeth - 1 do
+                    toothAngle.y = toothAngleStep * i
+
+                    local vbuffer = #verts
+                    local ibuffer = curveN * i
+
+                    local convex
+                    if convexes then
+                        convex = {}
+                    end
+
+                    local islast = i == numTeeth - 1
+                    local isnext = i ~= 0
+
+                    for j = 1, curveN do
+                        local pointUpper = Vector( curveP[j] )
+                        vec_rotate( pointUpper, toothAngle )
+
+                        local pointLower = Vector( pointUpper.x, pointUpper.y, -pointUpper.z )
+
+                        local idUpper = vbuffer + j
+                        local idLower = vbuffer + j + curveN
+
+                        verts[idUpper] = pointUpper
+                        verts[idLower] = pointLower
+
+                        if convexes then
+                            convex[j] = pointUpper
+                            convex[j + curveN] = pointLower
+
+                            if j == 1 or j == curveN then
+                                local circle = convexes[1]
+                                circle[#circle + 1] = verts[idUpper]
+                                circle[#circle + 1] = verts[idLower]
+                            end
+                        end
+                    end
+
+                    if convexes then
+                        convexes[#convexes + 1] = convex
+                    end
+                end
+            end
+
         end
+
+        registerType( "gear", function( param, data, threaded, physics )
+            local model = simpleton.New()
+
+            if physics then
+                model.convexes = { {} }
+            end
+
+            -- gear parameters
+            local numTeeth = math_clamp( tonumber( param.PrimCOUNT ) or 20, 3, 60 )
+            local module = math_clamp( tonumber( param.PrimMODULE ) or 1, 1, 50 )
+            local gearHeight = math_clamp( tonumber( param.PrimHEIGHT ) or 1, 1, 1000 ) * 0.5
+            local pressureAngle = math_clamp( tonumber( param.PrimANGLE ) or 20, 0, 45 )
+
+            -- gear setup
+            local toothDetail = SERVER and 2 or 4
+            local addendum = module
+            local dedendum = module * 1.25
+            local pitchDiameter = module * numTeeth                                                              -- tooth mid point
+            local rootDiameter = pitchDiameter - dedendum * 2                                                    -- tooth start point
+            local tipDiameter = pitchDiameter + addendum * 2                                                     -- tooth end point
+            local baseDiameter = math_max( rootDiameter, pitchDiameter * math_cos( math_rad( pressureAngle ) ) ) -- involute start point
+
+            -- gear profile curve
+            local curveP = curvePoints( numTeeth, toothDetail, gearHeight, pitchDiameter, baseDiameter, tipDiameter, rootDiameter )
+            local curveN = #curveP
+
+            -- gear profile array
+            generateGear( model, threaded, curveP, curveN, numTeeth )
+
+            util_Transform( model.verts, param.PrimMESHROT, param.PrimMESHPOS, threaded )
+
+            return model
+        end, { canThread = true } )
+
     end
 
-    Primitive.funcs.registerClass( "gear", class, spawnlist )
-
-end
 
 --]=====]
