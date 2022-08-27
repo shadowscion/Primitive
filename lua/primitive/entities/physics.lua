@@ -3,18 +3,82 @@ do
     local class = {}
 
     function class:PrimitiveGetConstruct()
+        return self:PrimitiveGetConstructSimple( "ladder" )
+    end
+
+
+    function class:PrimitiveSetupDataTables()
+        local category = "ladder"
+
+        self:PrimitiveVar( "PrimSOPT", "Int", { category = category, title = "options", panel = "bitfield", lbl = { "solid", "rail_enabled" } }, true )
+
+        self:PrimitiveVar( "PrimSCOUNT", "Int", { category = category, title = "step count", panel = "int", min = 1, max = 32 }, true )
+        self:PrimitiveVar( "PrimSHEIGHT", "Float", { category = category, title = "step height", panel = "float", min = 1, max = 50 }, true )
+        self:PrimitiveVar( "PrimRDIM", "Vector", { category = category, title = "rung size", panel = "vector", min = Vector( 1, 1, 1 ), max = Vector( 1000, 1000, 50 ) }, true )
+
+        self:PrimitiveVar( "PrimXDIM", "Vector", { category = category, title = "rail size", panel = "vector", min = Vector( 1, 1, 0 ), max = Vector( 1000, 1000, 50 ) }, true )
+
+    end
+
+
+    function class:PrimitiveOnSetup( initial, args )
+        if initial and SERVER then
+            duplicator.StoreEntityModifier( self, "mass", { Mass = 100 } )
+        end
+
+        self:SetPrimSOPT( bit.bor( 2 ) )
+
+        self:SetPrimSCOUNT( 16 )
+        self:SetPrimSHEIGHT( 12 )
+        self:SetPrimRDIM( Vector( 1.5, 24, 1 ) )
+        self:SetPrimXDIM( Vector( 3, 2, 12 ) )
+
+        local physics, uv = unpack( args )
+
+        if physics ~= nil then self:SetPrimMESHPHYS( tobool( physics ) ) end
+        if tonumber( uv ) then self:SetPrimMESHUV( tonumber( uv ) ) end
+    end
+
+
+    local spawnlist
+    if CLIENT then
+        spawnlist = {
+            { category = "physics", entity = "primitive_ladder", title = "ladder", command = "1 48" },
+        }
+
+        local callbacks = {
+            EDITOR_OPEN = function ( self, editor, name, val )
+                for k, cat in pairs( editor.categories ) do
+                    if k == "debug" or k == "mesh" or k == "model" then cat:ExpandRecurse( false ) else cat:ExpandRecurse( true ) end
+                end
+            end,
+        }
+
+        function class:EditorCallback( editor, name, val )
+            if callbacks[name] then callbacks[name]( self, editor, name, val ) end
+        end
+    end
+
+    Primitive.funcs.registerClass( "ladder", class, spawnlist )
+end
+
+
+do
+    local class = {}
+
+    function class:PrimitiveGetConstruct()
         return self:PrimitiveGetConstructSimple( "staircase" )
     end
 
 
     function class:PrimitiveSetupDataTables()
         local category = "staircase"
+
         self:PrimitiveVar( "PrimSOPT", "Int", { category = category, title = "options", panel = "bitfield", lbl = { "solid" } }, true )
         self:PrimitiveVar( "PrimSCOUNT", "Int", { category = category, title = "step count", panel = "int", min = 1, max = 32 }, true )
         self:PrimitiveVar( "PrimSWIDTH", "Float", { category = category, title = "step width", panel = "float", min = 1, max = 1000 }, true )
         self:PrimitiveVar( "PrimSRISE", "Float", { category = category, title = "rise", panel = "float", min = 1, max = 50 }, true )
         self:PrimitiveVar( "PrimSRUN", "Float", { category = category, title = "run", panel = "float", min = 1, max = 50 }, true )
-
     end
 
 
@@ -28,8 +92,6 @@ do
         self:SetPrimSRISE( 7 )
         self:SetPrimSRUN( 11 )
         self:SetPrimSWIDTH( 48 )
-
-        self:SetPrimMESHPHYS( true )
 
         local physics, uv = unpack( args )
 
@@ -58,89 +120,6 @@ do
     end
 
     Primitive.funcs.registerClass( "staircase", class, spawnlist )
-end
-
-
-do
-    local class = {}
-
-    function class:PrimitiveGetConstruct()
-        return self:PrimitiveGetConstructSimple( "airfoil" )
-    end
-
-    local helpDST = "Alters the density of vertices toward the leading and trailing edges"
-    local helpAFM = "'M' term - the maximum camber as a percentage of the chord"
-    local helpAFP = "'P' term - the distance between the leading edge and the maximum camber"
-    local helpAFT = "'T' term - the maximum thickness of the airfoil as a percentage of the chord"
-    local helpCHORD = "The distance between the leading and trailing edges"
-
-    function class:PrimitiveSetupDataTables()
-        local category = "airfoil"
-        self:PrimitiveVar( "PrimAFM", "Float", { category = category, title = "max camber (M)", panel = "float", min = 0, max = 9.5, help = helpAFM }, true )
-        self:PrimitiveVar( "PrimAFP", "Float", { category = category, title = "max camber pos (P)", panel = "float", min = 0, max = 90, help = helpAFP }, true )
-        self:PrimitiveVar( "PrimAFT", "Float", { category = category, title = "max thickness (T)", panel = "float", min = 1, max = 40, help = helpAFT }, true )
-        self:PrimitiveVar( "PrimAFOPEN", "Bool", { category = category, title = "open trailing edge", panel = "boolean" }, true )
-
-        local category = "wing"
-        self:PrimitiveVar( "PrimAFFLIP", "Bool", { category = category, title = "flip", panel = "bool" }, true )
-        self:PrimitiveVar( "PrimCHORDR", "Float", { category = category, title = "chord (root)", panel = "float", min = 1, max = 2000, help = helpCHORD }, true )
-        self:PrimitiveVar( "PrimCHORDT", "Float", { category = category, title = "chord (tip)", panel = "float", min = 1, max = 2000, help = helpCHORD }, true )
-        self:PrimitiveVar( "PrimSPAN", "Float", { category = category, title = "span", panel = "float", min = 1, max = 2000 }, true )
-        self:PrimitiveVar( "PrimSWEEP", "Float", { category = category, title = "sweep angle", panel = "float", min = -45, max = 45 }, true )
-        self:PrimitiveVar( "PrimDIHEDRAL", "Float", { category = category, title = "dihedral angle", panel = "float", min = -45, max = 45 }, true )
-
-        local category = "control surface"
-        self:PrimitiveVar( "PrimCSOPT", "Int", { category = category, title = "options", panel = "bitfield", lbl = { "enabled", "inverse clip" } }, true )
-
-        self:PrimitiveVar( "PrimCSYPOS", "Float", { category = category, title = "y offset", panel = "float", min = 0, max = 1 }, true )
-        self:PrimitiveVar( "PrimCSYLEN", "Float", { category = category, title = "y length", panel = "float", min = 0, max = 1 }, true )
-        self:PrimitiveVar( "PrimCSXLEN", "Float", { category = category, title = "x length", panel = "float", min = 0, max = 0.5 }, true )
-    end
-
-
-    function class:PrimitiveOnSetup( initial, args )
-        if initial and SERVER then
-            duplicator.StoreEntityModifier( self, "mass", { Mass = 100 } )
-        end
-
-        self:SetPrimAFM( 2 )
-        self:SetPrimAFP( 40 )
-        self:SetPrimAFT( 12 )
-        self:SetPrimCHORDR( 100 )
-        self:SetPrimCHORDT( 100 )
-        self:SetPrimSPAN( 200 )
-        self:SetPrimSWEEP( 0 )
-        self:SetPrimDIHEDRAL( 0 )
-
-        self:SetPrimCSYPOS( 0.5 )
-        self:SetPrimCSYLEN( 0.25 )
-        self:SetPrimCSXLEN( 0.5 )
-
-        self:SetPrimMESHSMOOTH( 60 )
-        self:SetPrimMESHPHYS( true )
-    end
-
-
-    local spawnlist
-    if CLIENT then
-        spawnlist = {
-            { category = "physics", entity = "primitive_airfoil", title = "airfoil", command = "" },
-        }
-
-        local callbacks = {
-            EDITOR_OPEN = function ( self, editor, name, val )
-                for k, cat in pairs( editor.categories ) do
-                    if k == "debug" or k == "mesh" or k == "model" then cat:ExpandRecurse( false ) else cat:ExpandRecurse( true ) end
-                end
-            end,
-        }
-
-        function class:EditorCallback( editor, name, val )
-            if callbacks[name] then callbacks[name]( self, editor, name, val ) end
-        end
-    end
-
-    Primitive.funcs.registerClass( "airfoil", class, spawnlist )
 end
 
 

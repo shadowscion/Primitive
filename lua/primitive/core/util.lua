@@ -34,6 +34,10 @@ end
 if CLIENT then
     hook.Add( "Primitive_PreRefreshMenu", "Primitive_AddSpawnlists", function( globalSpawnlist )
         for class, spawnlist in pairs( Primitive.classes ) do
+            -- for _, entry in pairs( spawnlist ) do
+            --     table.insert( globalSpawnlist, entry )
+            -- end
+
             table.insert( globalSpawnlist, spawnlist )
         end
     end )
