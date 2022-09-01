@@ -41,7 +41,7 @@ function class:SetupDataTables()
     self:PrimitiveVar( "PrimDEBUG", "Int", { global = true, category = "debug", title = "overlays", panel = "bitfield", lbl = { "hitbox", "vertex", "convex" } }, self.NotifyDebugDisplay )
 
     self:PrimitiveVar( "PrimMESHSMOOTH", "Int", { global = true, category = "mesh", title = "normals", panel = "int", min = 0, max = 90 }, true )
-    self:PrimitiveVar( "PrimMESHUV", "Int", { global = true, category = "mesh", title = "uv size", panel = "int", min = 8, max = 128 }, true )
+    self:PrimitiveVar( "PrimMESHUV", "Int", { global = true, category = "mesh", title = "uv size", panel = "int", min = 8, max = 512 }, true )
     self:PrimitiveVar( "PrimMESHENUMS", "Int", { global = true, category  = "mesh", title = "options", panel = "bitfield", num = 3, lbl = { "bumpmap", "inside", "invert" } }, true )
 
     self:PrimitiveVar( "PrimMESHPHYS", "Bool", { global = true, category = "model", title = "physics", panel = "bool" }, true )
