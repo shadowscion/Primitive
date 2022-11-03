@@ -362,7 +362,10 @@ end
 
 function class:Think()
     if self.primitive.init then
-        if self.PRIMITIVE_HALT_UPDATE then return end
+        if self.PRIMITIVE_FROM_DUPE then
+            return
+        end
+
         if SysTime() - self.primitive.init > updateTime:GetFloat() then
             self:PrimitiveReconstruct()
             self.primitive.init = nil
@@ -572,15 +575,26 @@ do
         end
     end
 
-    -- THIS IS BUGGED
-    -- FOR SOME REASON DEFAULT VALUES ARE APPLIED TO THE KEYS TABLE
-    -- THE 0.5s DELAY IS A BANDAID FIX AT BEST
     function class:PostEntityPaste( ply, ent, createdEntities )
         self:PrimitivePostEntityPaste( ply, ent, createdEntities )
 
-        if self.PRIMITIVE_HALT_UPDATE then
-            self.PRIMITIVE_HALT_UPDATE = nil
-            self.primitive.init = SysTime() + 0.5
+        if self.PRIMITIVE_FROM_DUPE then
+
+            -- dupe bug only affects parented primitives
+            -- if parented, delay the initialization
+
+            self.PRIMITIVE_FROM_DUPE = nil
+            self.primitive.init = SysTime() + 1
+        end
+    end
+
+    function class:OnDuplicated( tbl )
+        if istable( tbl ) and istable( tbl.BuildDupeInfo ) and isnumber( tbl.BuildDupeInfo.DupeParentID ) then
+
+            -- dupe bug only affects parented primitives
+            -- if parented, delay the initialization
+
+            self.PRIMITIVE_FROM_DUPE = true
         end
     end
 

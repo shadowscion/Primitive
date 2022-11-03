@@ -53,9 +53,10 @@ if SERVER then
 
             -- parenting sometimes messes up the physics objects on larger dupes, this prevents those primitives
             -- from updating until the entire dupe is finished pasting
-            if istable( data.BuildDupeInfo ) and isnumber( data.BuildDupeInfo.DupeParentID ) then
-                ent.PRIMITIVE_HALT_UPDATE = true
-            end
+
+            -- if istable( data.BuildDupeInfo ) and isnumber( data.BuildDupeInfo.DupeParentID ) then
+            --     ent.PRIMITIVE_HALT_UPDATE = true
+            -- end
         end
 
         ent:Spawn()
