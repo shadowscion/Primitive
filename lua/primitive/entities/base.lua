@@ -88,7 +88,10 @@ if SERVER then
         end
 
         constraint.RemoveAll( self )
-        self.ConstraintSystem = nil
+        self.Constraints = nil
+
+        -- where did I read this? it's wrong
+        -- self.ConstraintSystem = nil
 
         if next( constraints ) == nil then return else return constraints end
     end
