@@ -26,8 +26,9 @@ end )
 
 
 -------------------------------
-local toolblock = { makespherical = true, advresizer = true, forge = true, poly = true, resizer = true }
+local toolblock = { makespherical = true, advresizer = true, forge = true, poly = true, resizer = true, wire_clutch = true, wire_hydraulic = true }
 local tooldetour = {}
+local antispam = SysTime()
 
 hook.Add( "CanTool", "Primitive_ToolBlock", function( ply, tr, toolname, tool, button )
 
@@ -37,7 +38,8 @@ hook.Add( "CanTool", "Primitive_ToolBlock", function( ply, tr, toolname, tool, b
         if not ent or not ent.IsPrimitive or not IsValid( ent ) then return end
         if not scripted_ents.IsBasedOn( ent:GetClass(), "primitive_base" ) then return end
 
-        if CLIENT and IsValid( ply ) then
+        if CLIENT and IsValid( ply ) and SysTime() - antispam > 0.1 then
+            antispam = SysTime()
             chat.AddText( string.format( "'%s' cannot be used on %s", toolname, ent ) )
         end
 
