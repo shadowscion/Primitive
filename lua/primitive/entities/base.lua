@@ -88,10 +88,9 @@ if SERVER then
         end
 
         constraint.RemoveAll( self )
-        self.Constraints = nil
 
-        -- where did I read this? it's wrong
-        -- self.ConstraintSystem = nil
+        self.Constraints = nil
+        self.ConstraintSystem = nil
 
         if next( constraints ) == nil then return else return constraints end
     end
@@ -604,16 +603,15 @@ do
     hook.Add( "AdvDupe_FinishPasting", "Primitive_FinishPasting", function( data )
         if not istable( data ) or not istable( data[1] ) or not istable( data[1].CreatedEntities ) then return end
 
+        local t = SysTime()
+
         for _, ent in pairs( data[1].CreatedEntities ) do
 
-            -- dupe bug only affects parented primitives
-            -- if parented, delay the initialization
-
             if ent.IsPrimitive and istable( ent.primitive ) then
-                ent:PrimitiveReconstruct()
+                --ent:PrimitiveReconstruct()
 
                 ent.PRIMITIVE_FROM_DUPE = nil
-                ent.primitive.init = nil
+                ent.primitive.init = t
             end
         end
     end)
