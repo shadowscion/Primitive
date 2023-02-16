@@ -83,8 +83,8 @@ if SERVER then
     local function getconstraints( self )
         local constraints = {}
 
-        for _, v in pairs( constraint.GetTable( self ) ) do
-            table.insert( constraints, v)
+        for _, constr in pairs( constraint.GetTable( self ) ) do
+            table.insert( constraints, constr )
         end
 
         constraint.RemoveAll( self )
@@ -603,10 +603,9 @@ do
     hook.Add( "AdvDupe_FinishPasting", "Primitive_FinishPasting", function( data )
         if not istable( data ) or not istable( data[1] ) or not istable( data[1].CreatedEntities ) then return end
 
-        local t = SysTime()
+        local t = SysTime() + 1
 
         for _, ent in pairs( data[1].CreatedEntities ) do
-
             if ent.IsPrimitive and istable( ent.primitive ) then
                 --ent:PrimitiveReconstruct()
 
