@@ -399,7 +399,7 @@ function class:Initialize()
         self:SetSolid( SOLID_VPHYSICS )
 
         local physobj = self:GetPhysicsObject()
-        if physobj:IsValid() then
+        if physobj and physobj:IsValid() then
             physobj:EnableMotion( false )
         end
     end
