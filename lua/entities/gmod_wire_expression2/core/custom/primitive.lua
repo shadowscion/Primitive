@@ -3,8 +3,6 @@ E2Lib.RegisterExtension( "primitive", false, "Allows the manipulation of primiti
 
 local ANTISPAM_UPDATE_DELAY = 0.5
 
-
---
 local function isValidPrimitive( self, ent )
 	if not IsValid( ent ) or not scripted_ents.IsBasedOn( ent:GetClass(), "primitive_base" ) then
 		return false
@@ -12,7 +10,6 @@ local function isValidPrimitive( self, ent )
 
 	return true
 end
-
 
 local function antispam( ent, key )
 	if not ent.E2PrimitiveAntispam then
@@ -35,7 +32,6 @@ local function antispam( ent, key )
 
 	return true
 end
-
 
 local e2type = {}
 e2type.Vector = function( val )
@@ -73,19 +69,14 @@ local function editVariable( ply, ent, key, val )
 	hook.Run( "VariableEdited", ent, ply, key, tostring( val ), editor )
 end
 
-
---
 __e2setcost( 15 )
 
-e2function void primitiveEdit( entity ent, string key, ... )
+e2function void primitiveEdit( entity ent, string key, ...args )
 	if not isValidPrimitive( self, ent ) then return end
 
-	local args = { ... }
 	editVariable( self.player, ent, key, args[1] )
 end
 
-
---
 __e2setcost( 30 )
 
 local e2table = { string = "s", number = "n", boolean = "n" }
