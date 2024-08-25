@@ -1,3 +1,6 @@
+local entMeta = FindMetaTable( "Entity" )
+local entIsDormant = entMeta.IsDormant
+local entGetTable = entMeta.GetTable
 
 local class = { Type = "anim", Base = "base_anim", Spawnable = false, AdminOnly = true, IsPrimitive = true }
 
@@ -363,25 +366,28 @@ function class:PrimitiveSetThread( result )
 end
 
 function class:Think()
-    if self.primitive.init then
-        if self.PRIMITIVE_FROM_DUPE then
+    if entIsDormant( self ) then return end
+
+    local entTable = entGetTable( self )
+    if entTable.primitive.init then
+        if entTable.PRIMITIVE_FROM_DUPE then
             return
         end
 
-        if SysTime() - self.primitive.init > updateTime:GetFloat() then
+        if SysTime() - entTable.primitive.init > updateTime:GetFloat() then
             self:PrimitiveReconstruct()
             self.primitive.init = nil
         end
     end
 
-    if CLIENT and self.m_bCustomCollisions then
+    if CLIENT and entTable.m_bCustomCollisions then
 
         -- workaround for clientside physics bug
         -- https://github.com/Facepunch/garrysmod-issues/issues/5060
 
         local physobj = self:GetPhysicsObject()
 
-        if physobj:IsValid() then
+        if physobj:IsValid() and not physobj:IsAsleep() then
             physobj:SetPos( self:GetPos() )
             physobj:SetAngles( self:GetAngles() )
             physobj:EnableMotion( false )
