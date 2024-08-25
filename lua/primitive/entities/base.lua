@@ -2,6 +2,9 @@ local entMeta = FindMetaTable( "Entity" )
 local entIsDormant = entMeta.IsDormant
 local entGetTable = entMeta.GetTable
 
+local CLIENT = CLIENT
+local SERVER = SERVER
+
 local class = { Type = "anim", Base = "base_anim", Spawnable = false, AdminOnly = true, IsPrimitive = true }
 
 
@@ -366,7 +369,7 @@ function class:PrimitiveSetThread( result )
 end
 
 function class:Think()
-    if entIsDormant( self ) then return end
+    if CLIENT and entIsDormant( self ) then return end
 
     local entTable = entGetTable( self )
     if entTable.primitive.init then
