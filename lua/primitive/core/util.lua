@@ -168,3 +168,5 @@ do
         timer.Adjust( "primitive_log", 0.015 )
     end
 end
+
+cleanup.Register("primitive")
