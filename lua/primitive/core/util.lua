@@ -22,6 +22,8 @@ function Primitive.funcs.registerClass( name, class, spawnlist )
 
     if SERVER then
         duplicator.RegisterEntityClass( class.Name, function( ply, data )
+            if not ply:CheckLimit( "props" ) then return false end
+
             return CreateEntity( class.Name, ply, data )
         end, "Data" )
     else
@@ -64,7 +66,7 @@ if SERVER then
 
         if IsValid( ply ) then
             ent:SetVar( "Player", ply )
-            ply:AddCount( "Props", ent )
+            ply:AddCount( "props", ent )
         end
 
         return ent
